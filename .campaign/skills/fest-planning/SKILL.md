@@ -1,0 +1,115 @@
+---
+name: fest-planning
+description: Plan and scaffold festivals. Use when creating festival/phase/sequence/task structure, enforcing naming rules, linking festivals to projects, and promoting lifecycle states.
+---
+
+# Festival Planning
+
+Read shared contracts first: `../references/fest-command-contracts.md`.
+
+## Start Here
+
+```bash
+fest understand methodology
+fest understand structure
+fest understand tasks
+fest understand rules
+fest types festival
+```
+
+Topic index: `references/understand-topics.md`.
+
+`fest types` is low-frequency but high-value: use it at festival setup time or whenever type choice is unclear.
+
+## Naming Rules (Automation-Critical)
+
+- Phase dir: `NNN_UPPER_CASE/` (example `001_IMPLEMENT/`)
+- Sequence dir: `NN_lower_snake_case/` (example `01_auth_module/`)
+- Task file: `NN_lower_snake_case.md` (example `01_create_handler.md`)
+
+Every sequence should include `SEQUENCE_GOAL.md`.
+
+## Festival Types (Choose Before Scaffolding)
+
+Use `fest types festival` / `fest types festival show <type>` as source of truth for your workspace.
+
+- `standard`: balanced default, use when work needs ingest + planning before implementation.
+- `implementation`: execution-only, use when specs/plan already exist and coding can start directly.
+- `research`: investigation-heavy, use when decisions depend on comparative analysis and synthesis.
+- `ritual`: recurring/custom pattern, use for repeatable non-standard workflows.
+
+Create with explicit type:
+
+```bash
+fest create festival --type standard --name <name>
+fest create festival --type implementation --name <name>
+fest create festival --type research --name <name>
+fest create festival --type ritual --name <name> --dest ritual
+```
+
+## Phase Types (Choose by Work Shape)
+
+- `planning`: workflow phase for architecture/decision-making (`WORKFLOW.md`, no numbered sequences).
+- `research`: workflow phase for investigation and findings (`WORKFLOW.md`, sources/findings).
+- `ingest`: workflow phase for normalizing incoming context/specs (`WORKFLOW.md`, input/output specs).
+- `implementation`: sequence-driven coding phase (numbered sequences/tasks, quality gates).
+- `review`: freeform acceptance/signoff phase (goal-driven, not task-heavy).
+- `non_coding_action`: freeform operational actions (coordination, rollout, non-code tasks).
+
+Create with explicit phase type:
+
+```bash
+fest create phase --name "001_IMPLEMENT" --type implementation
+fest create phase --name "002_RESEARCH" --type research
+```
+
+## Create / Promote
+
+```bash
+fest create festival
+fest create phase
+fest create sequence
+fest create task
+
+fest promote
+fest validate
+```
+
+## Link + FGO Navigation (Required for Project-Context Execution)
+
+```bash
+# In festival directory
+fest link [path]
+fest link --show
+fest links
+fest unlink
+
+# Shell helper after `eval "$(fest shell-init zsh)"`
+fgo
+fgo project
+fgo fest
+```
+
+If the working project directory changes (new worktree, moved repo, different checkout), rerun `fest link` so `fgo`, `fest next`, and `fest commit` resolve correctly from the project path.
+
+## Type and Scaffolding
+
+```bash
+fest types list
+fest types show <type-name>
+```
+
+Advanced generation path (not the default planning entrypoint):
+
+```bash
+fest scaffold from-plan --plan STRUCTURE.md --name my-festival
+```
+
+## Common Mistakes
+
+- Using `fest link --project ...` (invalid).
+- Assuming an old link still works after changing project directory location.
+- Picking `implementation` type when requirements are still unclear (should be `standard` or `research` first).
+- Using workflow phase types when you need numbered implementation task execution.
+- Using noncompliant naming patterns (`P1-...`, `S1-...`, `T1-...`).
+- Treating `fest scaffold` base command as if it performs generation by itself.

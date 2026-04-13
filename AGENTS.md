@@ -1,0 +1,61 @@
+# AGENTS.md
+
+## Campaign: tutor
+
+This is the AI agent instruction file for the tutor campaign.
+
+## Overview
+
+<!-- Describe what this campaign is about -->
+
+## Projects
+
+<!-- List and describe your projects -->
+
+## Development Guidelines
+
+<!-- Add coding standards, patterns, etc. -->
+
+## Directory Structure
+
+| Directory | Purpose |
+|-----------|---------|
+| projects/ | Git submodules and project repositories |
+| projects/worktrees/ | Git worktrees for parallel development |
+| ai_docs/ | AI-generated documentation |
+| docs/ | Human-authored documentation |
+| dungeon/ | Archived, deprioritized, or paused work |
+| festivals/ | Festival methodology planning (via fest CLI) |
+| workflow/ | Development workflow artifacts |
+| workflow/code_reviews/ | Code review notes and feedback |
+| workflow/pipelines/ | CI/CD and automation |
+| workflow/design/ | Design documents and specifications |
+| workflow/explore/ | Exploratory research and discovery notes |
+| .campaign/intents/ | System-managed intent state used by `camp intent` |
+
+## Navigation Shortcuts
+
+| Shortcut | Directory |
+|----------|-----------|
+| `cgo p` | projects/ |
+| `cgo wt` | projects/worktrees/ |
+| `cgo w` | workflow/ |
+| `cgo f` | festivals/ |
+| `cgo a` | ai_docs/ |
+| `cgo d` | docs/ |
+| `cgo du` | dungeon/ |
+| `cgo cr` | workflow/code_reviews/ |
+| `cgo pi` | workflow/pipelines/ |
+| `cgo de` | workflow/design/ |
+| `cgo ex` | workflow/explore/ |
+| `cgo i` | .campaign/intents/ |
+
+## AI Instructions
+
+<!-- Add specific instructions for AI agents -->
+
+Planning-layer rule of thumb: use `camp intent` for fast capture and small actionable work, `workflow/design/` for architecture or exploratory thinking, and festivals for structured multi-step execution. Intent state is stored under `.campaign/intents/`. Canonical guide: https://fest.build/guides/intent-design-festival/
+
+---
+
+> See individual directory OBEY.md files for detailed usage information.
