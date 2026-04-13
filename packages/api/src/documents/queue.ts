@@ -1,14 +1,22 @@
 import { Queue } from 'bullmq';
+import { z } from 'zod';
 
 import type { ApiEnv } from '../config/env.js';
 
+export const DOCUMENT_PROCESSING_QUEUE_NAME = 'document-processing';
+export const DOCUMENT_PROCESSING_JOB_NAME = 'process-document';
+
+export const documentProcessingJobPayloadSchema = z.object({
+  documentId: z.string().trim().min(1),
+});
+
+export type DocumentProcessingJobPayload = z.infer<
+  typeof documentProcessingJobPayloadSchema
+>;
+
 export interface DocumentProcessingQueue {
   close?(): Promise<void>;
-  enqueue(input: {
-    documentId: string;
-    storageKey: string;
-    userId: string;
-  }): Promise<{
+  enqueue(input: DocumentProcessingJobPayload): Promise<{
     jobId: string;
   }>;
 }
@@ -17,7 +25,7 @@ class BullMqDocumentProcessingQueue implements DocumentProcessingQueue {
   private readonly queue: Queue;
 
   public constructor(env: Pick<ApiEnv, 'REDIS_URL'>) {
-    this.queue = new Queue('document-processing', {
+    this.queue = new Queue(DOCUMENT_PROCESSING_QUEUE_NAME, {
       connection: buildRedisConnectionOptions(env.REDIS_URL),
       defaultJobOptions: {
         attempts: 3,
@@ -29,14 +37,11 @@ class BullMqDocumentProcessingQueue implements DocumentProcessingQueue {
     });
   }
 
-  public async enqueue(input: {
-    documentId: string;
-    storageKey: string;
-    userId: string;
-  }): Promise<{
+  public async enqueue(input: DocumentProcessingJobPayload): Promise<{
     jobId: string;
   }> {
-    const job = await this.queue.add('process-document', input);
+    const payload = documentProcessingJobPayloadSchema.parse(input);
+    const job = await this.queue.add(DOCUMENT_PROCESSING_JOB_NAME, payload);
 
     return {
       jobId: String(job.id),

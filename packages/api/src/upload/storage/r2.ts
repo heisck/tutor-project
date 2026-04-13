@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Readable } from 'node:stream';
 
 import type { ApiEnv } from '../../config/env.js';
 
@@ -15,7 +16,18 @@ export interface UploadStorageClient {
   }>;
 }
 
-class R2UploadStorageClient implements UploadStorageClient {
+export interface DocumentSourceStorageClient {
+  getObject(input: {
+    key: string;
+  }): Promise<{
+    body: Buffer;
+    bucket: string;
+    key: string;
+    metadata: Record<string, string>;
+  }>;
+}
+
+class R2StorageClient implements UploadStorageClient, DocumentSourceStorageClient {
   private readonly bucketName: string;
   private readonly client: S3Client;
 
@@ -65,6 +77,33 @@ class R2UploadStorageClient implements UploadStorageClient {
       key: input.key,
     };
   }
+
+  public async getObject(input: {
+    key: string;
+  }): Promise<{
+    body: Buffer;
+    bucket: string;
+    key: string;
+    metadata: Record<string, string>;
+  }> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: input.key,
+      }),
+    );
+
+    if (response.Body === undefined) {
+      throw new Error(`Object ${input.key} was not found in bucket ${this.bucketName}`);
+    }
+
+    return {
+      body: await toBuffer(response.Body),
+      bucket: this.bucketName,
+      key: input.key,
+      metadata: response.Metadata ?? {},
+    };
+  }
 }
 
 export function createR2UploadStorageClient(
@@ -76,5 +115,41 @@ export function createR2UploadStorageClient(
     | 'R2_SECRET_ACCESS_KEY'
   >,
 ): UploadStorageClient {
-  return new R2UploadStorageClient(env);
+  return new R2StorageClient(env);
+}
+
+export function createR2DocumentSourceStorageClient(
+  env: Pick<
+    ApiEnv,
+    | 'R2_ACCESS_KEY_ID'
+    | 'R2_BUCKET_NAME'
+    | 'R2_ENDPOINT'
+    | 'R2_SECRET_ACCESS_KEY'
+  >,
+): DocumentSourceStorageClient {
+  return new R2StorageClient(env);
+}
+
+async function toBuffer(stream: unknown): Promise<Buffer> {
+  if (
+    typeof stream === 'object' &&
+    stream !== null &&
+    'transformToByteArray' in stream &&
+    typeof stream.transformToByteArray === 'function'
+  ) {
+    const bytes = await stream.transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
+  if (stream instanceof Readable) {
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks);
+  }
+
+  throw new Error('Unsupported object body stream');
 }

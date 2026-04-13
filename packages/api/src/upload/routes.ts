@@ -10,6 +10,7 @@ import type { DocumentProcessingQueue } from '../documents/queue.js';
 import {
   createDocumentRecord,
   mapDocumentProcessingStatus,
+  transitionDocumentProcessingStatus,
 } from '../documents/service.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
@@ -20,7 +21,10 @@ import {
   type UploadFinishResponse,
   type UploadValidationResponse,
 } from '@ai-tutor-pwa/shared';
-import type { DatabaseClient } from '@ai-tutor-pwa/db';
+import {
+  DocumentProcessingStatus,
+  type DatabaseClient,
+} from '@ai-tutor-pwa/db';
 import {
   completeUploadSession,
   discardUploadSession,
@@ -245,9 +249,15 @@ export async function registerUploadRoutes(
 
         await dependencies.documentQueue.enqueue({
           documentId: documentRecord.id,
-          storageKey: uploadSession.storageKey,
-          userId: uploadSession.userId,
         });
+
+        const queuedDocument = await transitionDocumentProcessingStatus(
+          dependencies.prisma,
+          {
+            documentId: documentRecord.id,
+            nextStatus: DocumentProcessingStatus.QUEUED,
+          },
+        );
 
         const completedSession = await completeUploadSession(
           dependencies.redis,
@@ -255,7 +265,7 @@ export async function registerUploadRoutes(
           {
             documentId: documentRecord.id,
             processingStatus: mapDocumentProcessingStatus(
-              documentRecord.processingStatus,
+              queuedDocument.processingStatus,
             ),
             uploadedAt: new Date().toISOString(),
           },
@@ -271,7 +281,7 @@ export async function registerUploadRoutes(
           document: {
             id: completedSession.documentId ?? documentRecord.id,
             processingStatus:
-              completedSession.processingStatus ?? 'pending',
+              completedSession.processingStatus ?? 'queued',
           },
           fileName: completedSession.fileName,
           fileSizeBytes: fileBuffer.byteLength,

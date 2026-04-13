@@ -3,3 +3,4 @@
 {"ts":"2026-04-13T02:01:37.662543203Z","event":"move","id":"AT0001","from":"ready","to":"active"}
 {"ts":"2026-04-13T02:07:08.619324437Z","event":"move","id":"AT0001","from":"active","to":"completed"}
 {"ts":"2026-04-13T08:09:02.447761689Z","event":"create","id":"AT0002","name":"ai-tutor-core-tutoring","status":"planning"}
+{"ts":"2026-04-13T17:56:13.472710996Z","event":"move","id":"AT0002","from":"planning","to":"ready"}

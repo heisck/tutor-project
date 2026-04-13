@@ -69,7 +69,7 @@ describe('document records and processing status', () => {
     const finishResponse = await completeUpload(agent, 'document-record.pdf');
 
     expect(finishResponse.status).toBe(200);
-    expect(finishResponse.body.document.processingStatus).toBe('pending');
+    expect(finishResponse.body.document.processingStatus).toBe('queued');
 
     const document = await prismaClient.document.findUnique({
       where: {
@@ -78,7 +78,7 @@ describe('document records and processing status', () => {
     });
 
     expect(document).not.toBeNull();
-    expect(document?.processingStatus).toBe(DocumentProcessingStatus.PENDING);
+    expect(document?.processingStatus).toBe(DocumentProcessingStatus.QUEUED);
   });
 
   it('enqueues a processing job after upload completion', async () => {
@@ -90,7 +90,6 @@ describe('document records and processing status', () => {
     expect(mockDocumentQueue.jobs).toHaveLength(1);
     expect(mockDocumentQueue.jobs[0]).toMatchObject({
       documentId: finishResponse.body.document.id,
-      storageKey: finishResponse.body.storage.key,
     });
   });
 
@@ -108,13 +107,13 @@ describe('document records and processing status', () => {
     expect(documentStatusResponse.status).toBe(200);
     expect(documentStatusResponse.body).toMatchObject({
       documentId: finishResponse.body.document.id,
-      processingStatus: 'pending',
+      processingStatus: 'queued',
       uploadId: null,
     });
     expect(uploadStatusResponse.status).toBe(200);
     expect(uploadStatusResponse.body).toMatchObject({
       documentId: finishResponse.body.document.id,
-      processingStatus: 'pending',
+      processingStatus: 'queued',
       status: 'completed',
       uploadId: finishResponse.body.uploadId,
     });
@@ -245,14 +244,10 @@ class InMemoryUploadStorageClient implements UploadStorageClient {
 class RecordingDocumentProcessingQueue implements DocumentProcessingQueue {
   public readonly jobs: Array<{
     documentId: string;
-    storageKey: string;
-    userId: string;
   }> = [];
 
   public async enqueue(input: {
     documentId: string;
-    storageKey: string;
-    userId: string;
   }): Promise<{
     jobId: string;
   }> {

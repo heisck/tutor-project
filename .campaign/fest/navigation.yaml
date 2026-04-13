@@ -1,7 +1,7 @@
 version: 1
-updated_at: 2026-04-13T01:30:04.146780812Z
+updated_at: 2026-04-13T18:00:31.733135555Z
 links:
-  ai-tutor-pwa-AT0001:
+  ai-tutor-core-tutoring-AT0002-broken:
     path: .
-    festival_path: festivals/planning/ai-tutor-pwa-AT0001
-    linked_at: 2026-04-13T01:30:04.146778984Z
+    festival_path: festivals/active/ai-tutor-core-tutoring-AT0002-broken
+    linked_at: 2026-04-13T18:00:31.733134755Z

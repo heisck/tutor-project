@@ -88,7 +88,7 @@ describe('upload routes', () => {
     expect(finishResponse.status).toBe(200);
     expect(finishResponse.body).toMatchObject({
       document: {
-        processingStatus: 'pending',
+        processingStatus: 'queued',
       },
       fileName: 'notes.pdf',
       mimeType: 'application/pdf',
@@ -301,8 +301,6 @@ class InMemoryUploadStorageClient implements UploadStorageClient {
 class InMemoryDocumentProcessingQueue implements DocumentProcessingQueue {
   public async enqueue(input: {
     documentId: string;
-    storageKey: string;
-    userId: string;
   }): Promise<{
     jobId: string;
   }> {
