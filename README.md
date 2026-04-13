@@ -1,50 +1,71 @@
-# <no value>
+# ai-tutor-pwa
 
-A campaign workspace managed by camp CLI.
+AI-powered study and tutoring PWA built with the Festival methodology.
 
-## Directory Structure
+## Workspace Structure
 
-```text
-.
-├── .campaign/          Campaign configuration and system state
-│   ├── intents/        System-managed intent state (use camp intent)
-│   └── settings/       Campaign settings and shortcuts
-├── projects/           Project repositories (submodules or worktrees)
-├── festivals/          Festival methodology planning workspace
-├── docs/               Human-authored documentation
-├── ai_docs/            AI-generated documentation and research
-├── workflow/           Workflow management (reviews, design, explore, pipelines)
-│   ├── code_reviews/   Code review notes
-│   ├── design/         Design documents
-│   ├── explore/        Exploratory research and discovery notes
-│   └── pipelines/      CI/CD definitions
-├── dungeon/            Archived and deprioritized work
-├── AGENTS.md           AI agent instructions
-└── CLAUDE.md           Symlink to AGENTS.md
-```
+- `packages/web` — Next.js frontend
+- `packages/api` — Fastify API service
+- `packages/db` — Prisma schema and database client
+- `packages/shared` — shared TypeScript types and constants
+- `packages/emails` — React Email templates
+- `festivals/active/ai-tutor-pwa-AT0001` — active FEST source of truth
 
-## Getting Started
+## Tech Stack
 
-This campaign is managed with the **camp** CLI.
+- Turborepo monorepo
+- Next.js + TypeScript + Tailwind CSS
+- Fastify + Zod
+- Prisma + PostgreSQL + pgvector
+- Redis + BullMQ-ready wiring
+- Vitest + Supertest
+
+## Local Setup
+
+1. Install dependencies:
 
 ```bash
-# Navigation
-camp go <shortcut>       # Jump to a shortcut location
-camp p <project>         # Jump to a project directory
-camp pins                # List pinned directories
-
-# Project management
-camp projects            # List all registered projects
-camp project add <path>  # Register a new project
-
-# Shortcuts
-camp shortcuts           # List all shortcuts
-camp shortcuts add       # Add a new shortcut (interactive)
-
-# Workflow
-camp log                 # Show campaign git log
-camp intent              # Manage campaign intents in .campaign/intents/
-
-# Help
-camp --help              # Full command reference
+npm install
 ```
+
+2. Copy the example environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Start PostgreSQL and Redis:
+
+```bash
+npm run docker:up
+```
+
+4. Generate the Prisma client and push the initial schema:
+
+```bash
+npm run db:generate
+npm run db:push
+```
+
+5. Start the apps:
+
+```bash
+npm run dev
+```
+
+Frontend runs on `http://localhost:3000`.
+API runs on `http://localhost:4000`.
+
+## Verification
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+```
+
+## Health Endpoints
+
+- `GET /health`
+- `GET /health/db`
+- `GET /health/redis`
