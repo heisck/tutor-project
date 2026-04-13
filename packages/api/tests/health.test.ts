@@ -6,6 +6,7 @@ import { getPrismaClient } from '@ai-tutor-pwa/db';
 import { buildApp } from '../src/app.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createApiTestEnv } from './test-env.js';
+import { createNoopDocumentProcessingQueue } from './test-doubles.js';
 
 const env = createApiTestEnv();
 const redisClient = createRedisClient(env);
@@ -13,6 +14,7 @@ const prismaClient = getPrismaClient({
   DATABASE_URL: env.DATABASE_URL,
 });
 const app = await buildApp({
+  documentProcessingQueue: createNoopDocumentProcessingQueue(),
   env,
   prismaClient,
   redisClient,

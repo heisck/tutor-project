@@ -1,0 +1,72 @@
+import type { DatabaseClient } from '@ai-tutor-pwa/db';
+import type { DocumentStatusResponse, UploadStatusResponse } from '@ai-tutor-pwa/shared';
+import type { FastifyInstance } from 'fastify';
+
+import { createRequireAuthPreHandler } from '../auth/session.js';
+import type { ApiEnv } from '../config/env.js';
+import { getUploadSession } from '../upload/session-store.js';
+import { getOwnedDocumentStatus } from './service.js';
+import type { RedisClient } from '../lib/redis.js';
+
+interface DocumentRouteDependencies {
+  env: ApiEnv;
+  prisma: DatabaseClient;
+  redis: RedisClient;
+}
+
+export async function registerDocumentRoutes(
+  app: FastifyInstance,
+  dependencies: DocumentRouteDependencies,
+): Promise<void> {
+  const requireAuth = createRequireAuthPreHandler(
+    dependencies.prisma,
+    dependencies.env,
+  );
+
+  app.get(
+    '/api/v1/uploads/:uploadId/status',
+    {
+      preHandler: [requireAuth],
+    },
+    async (request, reply): Promise<UploadStatusResponse | void> => {
+      const uploadId = (request.params as { uploadId: string }).uploadId;
+      const uploadSession = await getUploadSession(dependencies.redis, uploadId);
+
+      if (uploadSession === null || uploadSession.userId !== request.auth!.userId) {
+        return reply.status(404).send({
+          message: 'Upload not found',
+        });
+      }
+
+      return {
+        documentId: uploadSession.documentId,
+        fileName: uploadSession.fileName,
+        processingStatus: uploadSession.processingStatus,
+        status: uploadSession.status,
+        uploadId: uploadSession.uploadId,
+      };
+    },
+  );
+
+  app.get(
+    '/api/v1/documents/:documentId/status',
+    {
+      preHandler: [requireAuth],
+    },
+    async (request, reply): Promise<DocumentStatusResponse | void> => {
+      const documentId = (request.params as { documentId: string }).documentId;
+      const documentStatus = await getOwnedDocumentStatus(dependencies.prisma, {
+        documentId,
+        userId: request.auth!.userId,
+      });
+
+      if (documentStatus === null) {
+        return reply.status(404).send({
+          message: 'Document not found',
+        });
+      }
+
+      return documentStatus;
+    },
+  );
+}

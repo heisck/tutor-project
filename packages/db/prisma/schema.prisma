@@ -17,6 +17,17 @@ enum UserRole {
   ADMIN
 }
 
+enum DocumentProcessingStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  EXTRACTING
+  INDEXING
+  COMPLETE
+  FAILED
+  RETRYING
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -33,6 +44,7 @@ model User {
   updatedAt     DateTime      @updatedAt
   institution   Institution?  @relation(fields: [institutionId], references: [id], onDelete: SetNull)
   courses       Course[]
+  documents     Document[]
   sessions      AuthSession[]
 
   @@index([institutionId])
@@ -70,7 +82,30 @@ model Course {
   level     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  documents Document[]
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+}
+
+model Document {
+  id               String                   @id @default(cuid())
+  userId           String
+  courseId         String?
+  title            String
+  fileUrl          String
+  fileType         String
+  fileSize         Int
+  processingStatus DocumentProcessingStatus @default(PENDING)
+  supersededBy     String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  course           Course?                  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nextVersion      Document?                @relation("DocumentSupersession", fields: [supersededBy], references: [id], onDelete: SetNull)
+  previousVersions Document[]               @relation("DocumentSupersession")
+
+  @@index([courseId])
+  @@index([processingStatus])
   @@index([userId])
 }

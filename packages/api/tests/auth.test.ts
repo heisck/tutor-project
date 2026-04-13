@@ -10,6 +10,7 @@ import { hashPassword } from '../src/auth/password.js';
 import type { GoogleOauthClient } from '../src/auth/oauth/google.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createApiTestEnv } from './test-env.js';
+import { createNoopDocumentProcessingQueue } from './test-doubles.js';
 
 const testEmailPrefix = `auth-test-${randomUUID()}`;
 const baseEnv = createApiTestEnv();
@@ -34,6 +35,7 @@ afterAll(async () => {
 beforeEach(async () => {
   mockOauthClient = createMockGoogleOauthClient();
   app = await buildApp({
+    documentProcessingQueue: createNoopDocumentProcessingQueue(),
     env: createApiTestEnv(),
     oauthClient: mockOauthClient,
     prismaClient,
@@ -272,6 +274,7 @@ describe('auth routes', () => {
 
   it('marks the session cookie as secure in production', async () => {
     const secureApp = await buildApp({
+      documentProcessingQueue: createNoopDocumentProcessingQueue(),
       env: createApiTestEnv({
         NODE_ENV: 'production',
       }),

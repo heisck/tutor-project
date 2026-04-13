@@ -5,18 +5,25 @@ import type { RedisClient } from './redis.js';
 export interface RateLimitOptions {
   keyPrefix: string;
   limit: number;
+  resolveKey: (request: FastifyRequest) => string | null;
   timeWindowSeconds: number;
 }
 
-export function createIpRateLimitPreHandler(
+export function createRateLimitPreHandler(
   redis: RedisClient,
   options: RateLimitOptions,
 ) {
-  return async function rateLimitByIp(
+  return async function rateLimitRequest(
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
-    const key = `${options.keyPrefix}:${request.ip}`;
+    const resolvedKey = options.resolveKey(request);
+
+    if (resolvedKey === null) {
+      return;
+    }
+
+    const key = `${options.keyPrefix}:${resolvedKey}`;
     const currentCount = await redis.incr(key);
 
     if (currentCount === 1) {
@@ -38,4 +45,24 @@ export function createIpRateLimitPreHandler(
       });
     }
   };
+}
+
+export function createIpRateLimitPreHandler(
+  redis: RedisClient,
+  options: Omit<RateLimitOptions, 'resolveKey'>,
+) {
+  return createRateLimitPreHandler(redis, {
+    ...options,
+    resolveKey: (request) => request.ip,
+  });
+}
+
+export function createUserRateLimitPreHandler(
+  redis: RedisClient,
+  options: Omit<RateLimitOptions, 'resolveKey'>,
+) {
+  return createRateLimitPreHandler(redis, {
+    ...options,
+    resolveKey: (request) => request.auth?.userId ?? null,
+  });
 }

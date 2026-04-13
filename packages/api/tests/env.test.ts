@@ -15,6 +15,10 @@ describe('api environment validation', () => {
         NODE_ENV: 'test',
         PORT: '4000',
         REDIS_URL: 'redis://localhost:6379',
+        R2_ACCESS_KEY_ID: 'test-r2-access-key-id',
+        R2_BUCKET_NAME: 'test-private-bucket',
+        R2_ENDPOINT: 'https://example-account-id.r2.cloudflarestorage.com',
+        R2_SECRET_ACCESS_KEY: 'test-r2-secret-access-key',
         SESSION_TTL_HOURS: '168',
       }),
     ).toThrowError(/DATABASE_URL/);

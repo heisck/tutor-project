@@ -23,6 +23,10 @@ const apiEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   REDIS_URL: z.url({ error: 'REDIS_URL must be a valid URL' }),
+  R2_ACCESS_KEY_ID: z.string().min(1, 'R2_ACCESS_KEY_ID is required'),
+  R2_BUCKET_NAME: z.string().min(1, 'R2_BUCKET_NAME is required'),
+  R2_ENDPOINT: z.url({ error: 'R2_ENDPOINT must be a valid URL' }),
+  R2_SECRET_ACCESS_KEY: z.string().min(1, 'R2_SECRET_ACCESS_KEY is required'),
   SESSION_TTL_HOURS: z.coerce
     .number()
     .int()

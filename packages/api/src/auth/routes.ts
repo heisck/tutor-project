@@ -8,7 +8,7 @@ import {
   type AuthSessionResponse,
   type OauthAuthorizationUrlResponse,
 } from '@ai-tutor-pwa/shared';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import {
@@ -35,6 +35,7 @@ import {
   type GoogleOauthClient,
 } from './oauth/google.js';
 import type { ApiEnv } from '../config/env.js';
+import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import { createIpRateLimitPreHandler } from '../lib/rate-limit.js';
 import type { RedisClient } from '../lib/redis.js';
 
@@ -416,22 +417,5 @@ async function upsertGoogleUser(
   return {
     kind: 'success',
     user: createdUser,
-  };
-}
-
-function createAllowedOriginPreHandler(env: Pick<ApiEnv, 'CORS_ORIGINS'>) {
-  return async function ensureAllowedOrigin(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ): Promise<void> {
-    const origin = request.headers.origin;
-
-    if (origin === undefined || env.CORS_ORIGINS.includes(origin)) {
-      return;
-    }
-
-    reply.status(403).send({
-      message: 'Origin not allowed',
-    });
   };
 }
