@@ -22,6 +22,8 @@ import type {
   StudySessionStatus,
 } from '@ai-tutor-pwa/shared';
 
+import { persistTeachingPlanForSession, StudySessionPlanningError } from './planner.js';
+
 export class StudySessionTransitionError extends Error {
   public readonly currentStatus: PrismaStudySessionStatus;
   public readonly nextStatus: PrismaStudySessionStatus;
@@ -48,7 +50,9 @@ export class LearningProfileRequiredError extends Error {
   }
 }
 
-type StudySessionModel = Prisma.StudySessionGetPayload<{
+export { StudySessionPlanningError };
+
+export type StudySessionModel = Prisma.StudySessionGetPayload<{
   include: {
     currentSection: true;
     learningProfile: true;
@@ -165,7 +169,19 @@ export async function createStudySessionForOwnedDocument(
       },
     });
 
+    const teachingPlan = await persistTeachingPlanForSession(transaction, {
+      documentId: document.id,
+      learningProfile,
+      sessionId: createdSession.id,
+      userId: input.userId,
+    });
+
     return transitionOwnedStudySessionRecord(transaction, {
+      data: {
+        currentSectionId:
+          teachingPlan.segments[0]?.sectionId ?? createdSession.currentSectionId,
+        currentSegmentId: teachingPlan.currentSegmentId,
+      },
       nextStatus: PrismaStudySessionStatus.ACTIVE,
       now,
       sessionId: createdSession.id,
@@ -211,9 +227,10 @@ function assertValidStudySessionTransition(
   }
 }
 
-async function transitionOwnedStudySessionRecord(
+export async function transitionOwnedStudySessionRecord(
   prisma: Pick<DatabaseClient, 'studySession'>,
   input: {
+    data?: Prisma.StudySessionUncheckedUpdateInput;
     nextStatus: PrismaStudySessionStatus;
     now: Date;
     sessionId: string;
@@ -238,7 +255,12 @@ async function transitionOwnedStudySessionRecord(
   assertValidStudySessionTransition(existingSession.status, input.nextStatus);
 
   return prisma.studySession.update({
-    data: buildTransitionUpdate(existingSession, input.nextStatus, input.now),
+    data: buildTransitionUpdate(
+      existingSession,
+      input.nextStatus,
+      input.now,
+      input.data,
+    ),
     include: {
       currentSection: true,
       learningProfile: true,
@@ -306,8 +328,10 @@ function buildTransitionUpdate(
   session: StudySessionModel,
   nextStatus: PrismaStudySessionStatus,
   now: Date,
-): Prisma.StudySessionUpdateInput {
-  const data: Prisma.StudySessionUpdateInput = {
+  additionalData?: Prisma.StudySessionUncheckedUpdateInput,
+): Prisma.StudySessionUncheckedUpdateInput {
+  const data: Prisma.StudySessionUncheckedUpdateInput = {
+    ...(additionalData ?? {}),
     status: nextStatus,
   };
 

@@ -123,6 +123,12 @@ enum ExplanationStartPreference {
   WHY_FIRST
 }
 
+enum LessonSegmentExplanationStrategy {
+  EXAMPLE_FIRST
+  DIRECT
+  WHY_FIRST
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -148,6 +154,8 @@ model User {
   concepts         Concept[]
   misconceptions   Misconception[]
   coverageLedger   CoverageLedger[]
+  lessonSegments   LessonSegment[]
+  handoffSnapshots SessionHandoffSnapshot[]
   sessions         AuthSession[]
   studySessions    StudySession[]
   learningProfile  LearningProfile?
@@ -231,6 +239,8 @@ model Document {
   conceptPrerequisites  ConceptPrerequisite[]
   misconceptions        Misconception[]
   coverageLedger        CoverageLedger[]
+  lessonSegments        LessonSegment[]
+  handoffSnapshots      SessionHandoffSnapshot[]
   studySessions         StudySession[]
 
   @@index([courseId])
@@ -251,6 +261,7 @@ model DocumentSection {
   updatedAt   DateTime            @updatedAt
   assets      DocumentAsset[]
   sourceUnits SourceUnit[]
+  lessonSegments LessonSegment[]
   document    Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   currentForSessions StudySession[] @relation("StudySessionCurrentSection")
@@ -375,6 +386,7 @@ model Concept {
   document         Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   atus             AtomicTeachableUnit[]
+  lessonSegments   LessonSegment[]
   misconceptions   Misconception[]
   prerequisiteFor  ConceptPrerequisite[] @relation("PrerequisiteConcept")
   dependsOn        ConceptPrerequisite[] @relation("DependentConcept")
@@ -456,10 +468,72 @@ model StudySession {
   document             Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   currentSection       DocumentSection?   @relation("StudySessionCurrentSection", fields: [currentSectionId], references: [id], onDelete: SetNull)
+  currentSegment       LessonSegment?     @relation("StudySessionCurrentSegment", fields: [currentSegmentId], references: [id], onDelete: SetNull)
   learningProfile      LearningProfile?   @relation(fields: [learningProfileId], references: [id], onDelete: SetNull)
+  lessonSegments       LessonSegment[]
+  handoffSnapshot      SessionHandoffSnapshot?
 
   @@index([documentId])
   @@index([learningProfileId])
   @@index([status])
+  @@index([userId])
+}
+
+model LessonSegment {
+  id                    String                           @id @default(cuid())
+  studySessionId        String
+  documentId            String
+  userId                String
+  conceptId             String
+  sectionId             String?
+  ordinal               Int
+  sourceOrdinal         Int
+  explanationStrategy   LessonSegmentExplanationStrategy
+  conceptTitle          String
+  conceptDescription    String
+  analogyPrompt         String
+  checkPrompt           String
+  masteryGate           Json
+  coverageSummary       Json
+  atuIds                String[]
+  sourceUnitIds         String[]
+  chunkIds              String[]
+  prerequisiteConceptIds String[]
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  studySession          StudySession                     @relation(fields: [studySessionId], references: [id], onDelete: Cascade)
+  document              Document                         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user                  User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept               Concept                          @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  section               DocumentSection?                 @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  currentForSessions    StudySession[]                   @relation("StudySessionCurrentSegment")
+
+  @@index([conceptId])
+  @@index([documentId])
+  @@index([sectionId])
+  @@index([studySessionId])
+  @@index([userId])
+  @@unique([studySessionId, ordinal])
+}
+
+model SessionHandoffSnapshot {
+  id                 String       @id @default(cuid())
+  studySessionId     String       @unique
+  documentId         String
+  userId             String
+  currentSegmentId   String
+  currentSectionId   String?
+  currentStep        Int          @default(0)
+  masterySnapshot    Json
+  unresolvedAtuIds   String[]
+  explanationHistory Json
+  resumeNotes        String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  studySession       StudySession @relation(fields: [studySessionId], references: [id], onDelete: Cascade)
+  document           Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
   @@index([userId])
 }

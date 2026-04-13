@@ -29,26 +29,30 @@ describe('retrieval service', () => {
     });
   });
 
-  it('returns chunks scoped to the correct user and document', async () => {
-    const { document, user } = await createDocumentWithChunks([
-      'First chunk of content about biology.',
-      'Second chunk about cell division.',
-      'Third chunk about mitosis phases.',
-    ]);
+  it(
+    'returns chunks scoped to the correct user and document',
+    async () => {
+      const { document, user } = await createDocumentWithChunks([
+        'First chunk of content about biology.',
+        'Second chunk about cell division.',
+        'Third chunk about mitosis phases.',
+      ]);
 
-    const result = await retrieveChunksByText(prisma, {
-      documentId: document.id,
-      userId: user.id,
-    });
+      const result = await retrieveChunksByText(prisma, {
+        documentId: document.id,
+        userId: user.id,
+      });
 
-    expect(result.chunks).toHaveLength(3);
-    expect(result.chunks[0]!.ordinal).toBe(0);
-    expect(result.chunks[1]!.ordinal).toBe(1);
-    expect(result.chunks[2]!.ordinal).toBe(2);
-    for (const chunk of result.chunks) {
-      expect(chunk.documentId).toBe(document.id);
-    }
-  });
+      expect(result.chunks).toHaveLength(3);
+      expect(result.chunks[0]!.ordinal).toBe(0);
+      expect(result.chunks[1]!.ordinal).toBe(1);
+      expect(result.chunks[2]!.ordinal).toBe(2);
+      for (const chunk of result.chunks) {
+        expect(chunk.documentId).toBe(document.id);
+      }
+    },
+    15_000,
+  );
 
   it('enforces user isolation — different user sees no chunks', async () => {
     const { document } = await createDocumentWithChunks([

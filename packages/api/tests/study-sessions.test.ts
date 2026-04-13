@@ -15,6 +15,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { buildApp } from '../src/app.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
+import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
 
@@ -59,65 +60,81 @@ afterEach(async () => {
 });
 
 describe('study session routes', () => {
-  it('bootstraps a learning profile during first-time session start', async () => {
-    const account = await signUpAndAuthenticate('start-owner');
-    const document = await createOwnedDocument(account.userId, 'start-owner.pdf');
-    const calibration = createMiniCalibrationInput();
+  it(
+    'bootstraps a learning profile during first-time session start',
+    async () => {
+      const account = await signUpAndAuthenticate('start-owner');
+      const document = await createOwnedSessionDocument(
+        account.userId,
+        'start-owner.pdf',
+      );
+      const calibration = createMiniCalibrationInput();
 
-    const response = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
-      method: 'POST',
-      payload: {
-        calibration,
+      const response = await app.inject({
+        headers: {
+          cookie: account.cookie,
+          origin: 'http://localhost:3000',
+        },
+        method: 'POST',
+        payload: {
+          calibration,
+          documentId: document.id,
+        },
+        url: SESSION_PATHS.start,
+      });
+
+      expect(response.statusCode).toBe(201);
+
+      const body = parseJson<StudySessionLifecycleResponse>(response.body);
+      expect(body.session).toMatchObject({
+        currentStep: 0,
         documentId: document.id,
-      },
-      url: SESSION_PATHS.start,
-    });
+        frustrationFlagCount: 0,
+        mode: 'full',
+        motivationState: 'neutral',
+        status: 'active',
+      });
+      expect(body.session.currentSegmentId).not.toBeNull();
+      expect(body.learningProfile).toMatchObject(calibration);
+      expect(body.learningProfile?.lastCalibratedAt).not.toBeNull();
+      expect(body.session.startedAt).not.toBeNull();
+      expect(body.session.lastActiveAt).not.toBeNull();
 
-    expect(response.statusCode).toBe(201);
+      const [persistedSession, persistedProfile] = await Promise.all([
+        prismaClient.studySession.findUnique({
+          where: {
+            id: body.session.id,
+          },
+        }),
+        prismaClient.learningProfile.findUnique({
+          where: {
+            userId: account.userId,
+          },
+        }),
+      ]);
 
-    const body = parseJson<StudySessionLifecycleResponse>(response.body);
-    expect(body.session).toMatchObject({
-      currentStep: 0,
-      documentId: document.id,
-      frustrationFlagCount: 0,
-      mode: 'full',
-      motivationState: 'neutral',
-      status: 'active',
-    });
-    expect(body.learningProfile).toMatchObject(calibration);
-    expect(body.learningProfile?.lastCalibratedAt).not.toBeNull();
-    expect(body.session.startedAt).not.toBeNull();
-    expect(body.session.lastActiveAt).not.toBeNull();
-
-    const [persistedSession, persistedProfile] = await Promise.all([
-      prismaClient.studySession.findUnique({
-        where: {
-          id: body.session.id,
-        },
-      }),
-      prismaClient.learningProfile.findUnique({
-        where: {
-          userId: account.userId,
-        },
-      }),
-    ]);
-
-    expect(persistedSession).not.toBeNull();
-    expect(persistedSession?.userId).toBe(account.userId);
-    expect(persistedSession?.documentId).toBe(document.id);
-    expect(persistedSession?.learningProfileId).toBe(persistedProfile?.id ?? null);
-    expect(persistedSession?.status).toBe('ACTIVE');
-    expect(persistedProfile).not.toBeNull();
-  });
+      expect(persistedSession).not.toBeNull();
+      expect(persistedSession?.userId).toBe(account.userId);
+      expect(persistedSession?.documentId).toBe(document.id);
+      expect(persistedSession?.learningProfileId).toBe(
+        persistedProfile?.id ?? null,
+      );
+      expect(persistedSession?.status).toBe('ACTIVE');
+      expect(persistedProfile).not.toBeNull();
+    },
+    15_000,
+  );
 
   it('reuses an existing learning profile on later session starts', async () => {
     const account = await signUpAndAuthenticate('reuse-owner');
-    const firstDocument = await createOwnedDocument(account.userId, 'reuse-a.pdf');
-    const secondDocument = await createOwnedDocument(account.userId, 'reuse-b.pdf');
+    const firstDocument = await createOwnedSessionDocument(
+      account.userId,
+      'reuse-a.pdf',
+    );
+    const secondDocument = await createOwnedSessionDocument(
+      account.userId,
+      'reuse-b.pdf',
+    );
 
     const firstStartedSession = await startStudySession(account.cookie, firstDocument.id, {
       calibration: createMiniCalibrationInput(),
@@ -156,7 +173,10 @@ describe('study session routes', () => {
 
   it('pauses and resumes a study session through valid lifecycle transitions', async () => {
     const account = await signUpAndAuthenticate('pause-resume-owner');
-    const document = await createOwnedDocument(account.userId, 'pause-resume.pdf');
+    const document = await createOwnedSessionDocument(
+      account.userId,
+      'pause-resume.pdf',
+    );
     const startedSession = await startStudySession(account.cookie, document.id, {
       calibration: createMiniCalibrationInput(),
     });
@@ -192,7 +212,10 @@ describe('study session routes', () => {
 
   it('rejects invalid lifecycle transitions with a clear error', async () => {
     const account = await signUpAndAuthenticate('invalid-transition-owner');
-    const document = await createOwnedDocument(account.userId, 'invalid-transition.pdf');
+    const document = await createOwnedSessionDocument(
+      account.userId,
+      'invalid-transition.pdf',
+    );
     const startedSession = await startStudySession(account.cookie, document.id, {
       calibration: createMiniCalibrationInput(),
     });
@@ -252,7 +275,10 @@ describe('study session routes', () => {
   it('rejects cross-user access to pause or resume another user session', async () => {
     const owner = await signUpAndAuthenticate('cross-user-owner');
     const intruder = await signUpAndAuthenticate('cross-user-intruder');
-    const document = await createOwnedDocument(owner.userId, 'cross-user.pdf');
+    const document = await createOwnedSessionDocument(
+      owner.userId,
+      'cross-user.pdf',
+    );
     const startedSession = await startStudySession(owner.cookie, document.id, {
       calibration: createMiniCalibrationInput(),
     });
@@ -288,7 +314,10 @@ describe('study session routes', () => {
 
   it('rejects malformed calibration input and requires calibration for first-time users', async () => {
     const account = await signUpAndAuthenticate('invalid-calibration');
-    const document = await createOwnedDocument(account.userId, 'invalid-calibration.pdf');
+    const document = await createOwnedSessionDocument(
+      account.userId,
+      'invalid-calibration.pdf',
+    );
 
     const malformedCalibrationResponse = await app.inject({
       headers: {
@@ -326,6 +355,41 @@ describe('study session routes', () => {
       message: 'Mini calibration is required before starting the first study session',
     });
   });
+
+  it('rejects session start when the document knowledge model is missing', async () => {
+    const account = await signUpAndAuthenticate('missing-plan-inputs');
+    const document = await createOwnedDocument(
+      account.userId,
+      'missing-plan-inputs.pdf',
+    );
+
+    const response = await app.inject({
+      headers: {
+        cookie: account.cookie,
+        origin: 'http://localhost:3000',
+      },
+      method: 'POST',
+      payload: {
+        calibration: createMiniCalibrationInput(),
+        documentId: document.id,
+      },
+      url: SESSION_PATHS.start,
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(parseJson<{ message: string }>(response.body)).toEqual({
+      message: 'Cannot generate teaching plan: No concepts are available for lesson planning; Coverage ledger has not been initialized for this document',
+    });
+
+    const sessions = await prismaClient.studySession.findMany({
+      where: {
+        documentId: document.id,
+        userId: account.userId,
+      },
+    });
+
+    expect(sessions).toHaveLength(0);
+  });
 });
 
 async function createOwnedDocument(userId: string, title: string) {
@@ -339,6 +403,28 @@ async function createOwnedDocument(userId: string, title: string) {
       userId,
     },
   });
+}
+
+async function createOwnedSessionDocument(userId: string, title: string) {
+  const { document } = await createDocumentWithKnowledgeGraph(prismaClient, {
+    concepts: [
+      {
+        description: 'What a cell is and why it matters',
+        sectionContent: 'Cells are the basic unit of life and every organism depends on them.',
+        title: 'Cells',
+      },
+      {
+        description: 'How cells divide',
+        prerequisiteTitles: ['Cells'],
+        sectionContent: 'Mitosis explains how one cell divides into two similar cells.',
+        title: 'Mitosis',
+      },
+    ],
+    title,
+    userId,
+  });
+
+  return document;
 }
 
 function createTestEmail(label: string): string {

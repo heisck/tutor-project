@@ -7,7 +7,7 @@
     "build": "next build",
     "dev": "dotenv -e ../../.env.local -- next dev --port 3000",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "dotenv -e ../../.env.local -- next typegen && tsc --noEmit --incremental false",
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "start": "dotenv -e ../../.env.local -- next start --port 3000"

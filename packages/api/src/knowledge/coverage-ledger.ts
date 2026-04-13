@@ -20,12 +20,17 @@ export class KnowledgeGraphIntegrityError extends Error {
   }
 }
 
+type KnowledgeGraphIntegrityClient = Pick<
+  DatabaseClient,
+  'atomicTeachableUnit' | 'concept' | 'conceptPrerequisite' | 'sourceUnit'
+>;
+
 /**
  * Validate knowledge graph integrity before initializing coverage.
  * Fails fast if any structural issues are detected.
  */
 export async function validateKnowledgeGraphIntegrity(
-  prisma: DatabaseClient,
+  prisma: KnowledgeGraphIntegrityClient,
   input: CoverageInitializationInput,
 ): Promise<void> {
   const violations: string[] = [];

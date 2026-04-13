@@ -1,14 +1,13 @@
-import {
-  StudySessionStatus as PrismaStudySessionStatus,
-  type DatabaseClient,
-} from '@ai-tutor-pwa/db';
+import { type DatabaseClient } from '@ai-tutor-pwa/db';
 import {
   ACADEMIC_LEVELS,
   EXPLANATION_START_PREFERENCES,
   SESSION_PATHS,
   STUDY_GOAL_PREFERENCES,
   STUDY_SESSION_MODES,
+  sessionHandoffSnapshotInputSchema,
   type StudySessionLifecycleResponse,
+  type StudySessionStateResponse,
 } from '@ai-tutor-pwa/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -17,12 +16,21 @@ import { createRequireAuthPreHandler } from '../auth/session.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import {
+  pauseOwnedStudySessionWithHandoff,
+  restoreOwnedStudySessionFromHandoff,
+  SessionHandoffSnapshotError,
+} from './handoff.js';
+import {
   createStudySessionForOwnedDocument,
   LearningProfileRequiredError,
+  StudySessionPlanningError,
   StudySessionTransitionError,
   toStudySessionLifecycleResponse,
-  transitionOwnedStudySession,
 } from './service.js';
+import {
+  getOwnedStudySessionState,
+  StudySessionStateProjectionError,
+} from './state.js';
 
 const miniCalibrationSchema = z
   .object({
@@ -43,6 +51,12 @@ const startStudySessionSchema = z
 const sessionParamsSchema = z
   .object({
     sessionId: z.string().trim().min(1, 'sessionId is required'),
+  })
+  .strict();
+
+const pauseStudySessionSchema = z
+  .object({
+    handoff: sessionHandoffSnapshotInputSchema.optional(),
   })
   .strict();
 
@@ -105,6 +119,54 @@ export async function registerStudySessionRoutes(
           });
         }
 
+        if (error instanceof StudySessionPlanningError) {
+          return reply.status(409).send({
+            message: error.message,
+          });
+        }
+
+        throw error;
+      }
+    },
+  );
+
+  app.get(
+    SESSION_PATHS.state(':sessionId'),
+    {
+      preHandler: [requireAuth],
+    },
+    async (request, reply): Promise<StudySessionStateResponse | void> => {
+      const parsedParams = sessionParamsSchema.safeParse(request.params);
+
+      if (!parsedParams.success) {
+        return reply.status(400).send({
+          message: parsedParams.error.issues[0]?.message ?? 'Invalid route params',
+        });
+      }
+
+      try {
+        const sessionState = await getOwnedStudySessionState(
+          dependencies.prisma,
+          {
+            sessionId: parsedParams.data.sessionId,
+            userId: request.auth!.userId,
+          },
+        );
+
+        if (sessionState === null) {
+          return reply.status(404).send({
+            message: 'Study session not found',
+          });
+        }
+
+        return reply.send(sessionState);
+      } catch (error) {
+        if (error instanceof StudySessionStateProjectionError) {
+          return reply.status(409).send({
+            message: error.message,
+          });
+        }
+
         throw error;
       }
     },
@@ -117,6 +179,7 @@ export async function registerStudySessionRoutes(
     },
     async (request, reply): Promise<StudySessionLifecycleResponse | void> => {
       const parsedParams = sessionParamsSchema.safeParse(request.params);
+      const parsedBody = pauseStudySessionSchema.safeParse(request.body ?? {});
 
       if (!parsedParams.success) {
         return reply.status(400).send({
@@ -124,12 +187,23 @@ export async function registerStudySessionRoutes(
         });
       }
 
-      try {
-        const session = await transitionOwnedStudySession(dependencies.prisma, {
-          nextStatus: PrismaStudySessionStatus.PAUSED,
-          sessionId: parsedParams.data.sessionId,
-          userId: request.auth!.userId,
+      if (!parsedBody.success) {
+        return reply.status(400).send({
+          message: parsedBody.error.issues[0]?.message ?? 'Invalid request body',
         });
+      }
+
+      try {
+        const session = await pauseOwnedStudySessionWithHandoff(
+          dependencies.prisma,
+          {
+            ...(parsedBody.data.handoff !== undefined
+              ? { handoff: parsedBody.data.handoff }
+              : {}),
+            sessionId: parsedParams.data.sessionId,
+            userId: request.auth!.userId,
+          },
+        );
 
         if (session === null) {
           return reply.status(404).send({
@@ -139,7 +213,10 @@ export async function registerStudySessionRoutes(
 
         return reply.send(toStudySessionLifecycleResponse(session));
       } catch (error) {
-        if (error instanceof StudySessionTransitionError) {
+        if (
+          error instanceof SessionHandoffSnapshotError ||
+          error instanceof StudySessionTransitionError
+        ) {
           return reply.status(409).send({
             message: error.message,
           });
@@ -165,11 +242,13 @@ export async function registerStudySessionRoutes(
       }
 
       try {
-        const session = await transitionOwnedStudySession(dependencies.prisma, {
-          nextStatus: PrismaStudySessionStatus.ACTIVE,
-          sessionId: parsedParams.data.sessionId,
-          userId: request.auth!.userId,
-        });
+        const session = await restoreOwnedStudySessionFromHandoff(
+          dependencies.prisma,
+          {
+            sessionId: parsedParams.data.sessionId,
+            userId: request.auth!.userId,
+          },
+        );
 
         if (session === null) {
           return reply.status(404).send({
@@ -179,7 +258,10 @@ export async function registerStudySessionRoutes(
 
         return reply.send(toStudySessionLifecycleResponse(session));
       } catch (error) {
-        if (error instanceof StudySessionTransitionError) {
+        if (
+          error instanceof SessionHandoffSnapshotError ||
+          error instanceof StudySessionTransitionError
+        ) {
           return reply.status(409).send({
             message: error.message,
           });

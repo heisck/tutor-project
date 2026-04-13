@@ -1,7 +1,9 @@
+import type { TeachingPlanRecord } from './lesson-plan.js';
 import type {
   LearningProfileSummary,
   MiniCalibrationInput,
 } from './learning-profile.js';
+import type { SessionHandoffSnapshotRecord } from './session-handoff.js';
 
 export const STUDY_SESSION_MODES = [
   'full',
@@ -39,6 +41,7 @@ export const SESSION_PATHS = {
   pause: (sessionId: string) => `/api/v1/sessions/${sessionId}/pause`,
   resume: (sessionId: string) => `/api/v1/sessions/${sessionId}/resume`,
   start: '/api/v1/sessions/start',
+  state: (sessionId: string) => `/api/v1/sessions/${sessionId}/state`,
 } as const;
 
 export interface StudySessionRecord {
@@ -60,6 +63,13 @@ export interface StudySessionRecord {
 export interface StudySessionLifecycleResponse {
   learningProfile: LearningProfileSummary | null;
   session: StudySessionRecord;
+}
+
+export interface StudySessionStateResponse {
+  handoffSnapshot: SessionHandoffSnapshotRecord | null;
+  learningProfile: LearningProfileSummary | null;
+  session: StudySessionRecord;
+  teachingPlan: TeachingPlanRecord;
 }
 
 export interface StartStudySessionRequest {
