@@ -60,8 +60,29 @@ export const normalizedDocumentAssetSchema = z.object({
 });
 export type NormalizedDocumentAsset = z.infer<typeof normalizedDocumentAssetSchema>;
 
+export const normalizedExtractionWarningCodeSchema = z.enum([
+  'missing_extractable_text',
+  'low_confidence_caption',
+  'low_confidence_formula',
+  'low_confidence_table',
+]);
+export type NormalizedExtractionWarningCode = z.infer<
+  typeof normalizedExtractionWarningCodeSchema
+>;
+
+export const normalizedExtractionWarningSchema = z.object({
+  code: normalizedExtractionWarningCodeSchema,
+  message: z.string().min(1),
+  pageNumber: z.number().int().positive().optional(),
+  sourceId: z.string().min(1).optional(),
+});
+export type NormalizedExtractionWarning = z.infer<
+  typeof normalizedExtractionWarningSchema
+>;
+
 export const normalizedDocumentStructureSchema = z.object({
   assets: z.array(normalizedDocumentAssetSchema),
   sections: z.array(normalizedDocumentSectionSchema),
+  warnings: z.array(normalizedExtractionWarningSchema).default([]),
 });
 export type NormalizedDocumentStructure = z.infer<typeof normalizedDocumentStructureSchema>;

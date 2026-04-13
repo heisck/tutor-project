@@ -1,15 +1,22 @@
 import { type DatabaseClient, DocumentProcessingStatus } from '@ai-tutor-pwa/db';
 import { Worker, UnrecoverableError, type JobsOptions } from 'bullmq';
 import type { ApiEnv } from '../config/env.js';
-import type { DocumentSourceStorageClient } from '../upload/storage/r2.js';
+import type { DocumentSourceStorageClient, UploadStorageClient } from '../upload/storage/r2.js';
+import { processExtractionResult, type AssetPipelineContext } from './asset-pipeline.js';
 import {
   buildRedisConnectionOptions,
   DOCUMENT_PROCESSING_QUEUE_NAME,
   documentProcessingJobPayloadSchema,
   type DocumentProcessingJobPayload,
 } from './queue.js';
-import { findDocumentParserAdapter, type DocumentParserAdapter } from './parsers.js';
+import {
+  findDocumentParserAdapter,
+  type DocumentParserAdapter,
+  UnrecoverableDocumentParserError,
+} from './parsers.js';
+import { persistNormalizedDocumentStructure } from './persistence.js';
 import { transitionDocumentProcessingStatus } from './service.js';
+import type { VisionDescriptionClient } from './vision-client.js';
 
 interface JobLike {
   attemptsMade: number;
@@ -18,10 +25,12 @@ interface JobLike {
 }
 
 export interface DocumentProcessingWorkerDependencies {
+  assetStorageClient?: UploadStorageClient;
   env: Pick<ApiEnv, 'REDIS_URL'>;
   parserAdapters: readonly DocumentParserAdapter[];
   prisma: DatabaseClient;
   storageClient: DocumentSourceStorageClient;
+  visionClient?: VisionDescriptionClient | null;
 }
 
 export interface DocumentProcessingWorkerHandle {
@@ -100,12 +109,43 @@ export function createDocumentProcessingJobProcessor(
         nextStatus: DocumentProcessingStatus.EXTRACTING,
       });
 
-      await parser.parse({
+      const parserContext = {
         documentId: document.id,
         fileBuffer: sourceFile.body,
         fileType: document.fileType,
         storageKey: storageLocation.key,
         userId: document.userId,
+      };
+
+      let structure;
+
+      if (parser.extract !== undefined && dependencies.assetStorageClient !== undefined) {
+        const extraction = await parser.extract(parserContext);
+        const assetContext: AssetPipelineContext = {
+          documentId: document.id,
+          storageClient: dependencies.assetStorageClient,
+          userId: document.userId,
+          visionClient: dependencies.visionClient ?? null,
+        };
+        structure = await processExtractionResult(extraction, assetContext);
+      } else {
+        structure = await parser.parse(parserContext);
+      }
+
+      await transitionDocumentProcessingStatus(dependencies.prisma, {
+        documentId: document.id,
+        nextStatus: DocumentProcessingStatus.INDEXING,
+      });
+
+      await persistNormalizedDocumentStructure(dependencies.prisma, {
+        documentId: document.id,
+        structure,
+        userId: document.userId,
+      });
+
+      await transitionDocumentProcessingStatus(dependencies.prisma, {
+        documentId: document.id,
+        nextStatus: DocumentProcessingStatus.COMPLETE,
       });
 
       return {
@@ -113,14 +153,15 @@ export function createDocumentProcessingJobProcessor(
         storageKey: storageLocation.key,
       };
     } catch (error) {
+      const workerError = normalizeDocumentProcessingError(error);
       await markDocumentProcessingFailure(
         dependencies.prisma,
         document.id,
-        error,
+        workerError,
         job.attemptsMade,
         job.opts.attempts,
       );
-      throw error;
+      throw workerError;
     }
   };
 }
@@ -208,4 +249,15 @@ export class UnsupportedDocumentParserError extends UnrecoverableError {
     super(`Unsupported document file type for processing: ${fileType}`);
     this.name = 'UnsupportedDocumentParserError';
   }
+}
+
+function normalizeDocumentProcessingError(error: unknown): unknown {
+  if (
+    error instanceof UnrecoverableError ||
+    !(error instanceof UnrecoverableDocumentParserError)
+  ) {
+    return error;
+  }
+
+  return new UnrecoverableError(error.message);
 }

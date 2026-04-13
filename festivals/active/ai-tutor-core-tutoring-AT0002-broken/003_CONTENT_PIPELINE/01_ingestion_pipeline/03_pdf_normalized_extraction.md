@@ -4,11 +4,13 @@ fest_id: 03_pdf_normalized_extraction.md
 fest_name: pdf normalized extraction
 fest_parent: 01_ingestion_pipeline
 fest_order: 3
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:31.931208191Z
+fest_updated: 2026-04-13T18:36:32.328303978Z
 fest_tracking: true
 ---
+
 
 # Task: pdf normalized extraction
 

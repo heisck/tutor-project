@@ -4,7 +4,7 @@ fest_id: 04_pptx_and_docx_normalized_extraction.md
 fest_name: pptx and docx normalized extraction
 fest_parent: 01_ingestion_pipeline
 fest_order: 4
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:32.000412715Z
 fest_tracking: true

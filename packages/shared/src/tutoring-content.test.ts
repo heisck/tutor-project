@@ -40,6 +40,7 @@ describe('tutoring content contracts', () => {
 
     expect(structure.sections[0]?.sourceTrace.headingPath).toEqual(['Mechanics']);
     expect(structure.assets[0]?.kind).toBe('diagram');
+    expect(structure.warnings).toEqual([]);
   });
 
   it('rejects invalid source trace payloads', () => {

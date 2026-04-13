@@ -4,6 +4,7 @@ export function createApiTestEnv(
   overrides: Record<string, string> = {},
 ): ApiEnv {
   return loadApiEnv({
+    ANTHROPIC_API_KEY: 'test-anthropic-api-key',
     APP_VERSION: 'test',
     COOKIE_SECRET: 'test-cookie-secret-1234567890abcd',
     CORS_ORIGINS: 'http://localhost:3000,https://app.domain.com',

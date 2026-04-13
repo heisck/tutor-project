@@ -4,7 +4,7 @@ fest_id: 06_section_and_asset_persistence_plus_processing_state_transitions.md
 fest_name: section and asset persistence plus processing state transitions
 fest_parent: 01_ingestion_pipeline
 fest_order: 6
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:32.133995474Z
 fest_tracking: true

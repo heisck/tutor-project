@@ -72,8 +72,56 @@ describe('document processing worker', () => {
       `users/${user.id}/uploads/upload-1/lesson.pdf`,
     );
     expect(refreshedDocument.processingStatus).toBe(
-      DocumentProcessingStatus.EXTRACTING,
+      DocumentProcessingStatus.COMPLETE,
     );
+
+    const sections = await prismaClient.documentSection.findMany({
+      orderBy: { ordinal: 'asc' },
+      where: { documentId: document.id },
+    });
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.content).toBe('Parsed section');
+    expect(sections[0]?.kind).toBe('TEXT');
+    expect(sections[0]?.ordinal).toBe(0);
+    expect(sections[0]?.userId).toBe(user.id);
+  });
+
+  it('persists sections safely on retry without duplicates', async () => {
+    const sourceStorage = new InMemoryDocumentSourceStorageClient();
+    const parser = new RecordingParserAdapter(['application/pdf']);
+    const processor = createDocumentProcessingJobProcessor({
+      parserAdapters: [parser],
+      prisma: prismaClient,
+      storageClient: sourceStorage,
+    });
+    const { document, user } = await createQueuedDocument('application/pdf', 'retry-persist.pdf');
+
+    sourceStorage.store(`users/${user.id}/uploads/upload-1/retry-persist.pdf`, pdfBuffer());
+
+    // First run succeeds
+    await processor({
+      attemptsMade: 0,
+      data: { documentId: document.id },
+      opts: { attempts: 3 },
+    });
+
+    // Simulate re-processing by resetting status
+    await prismaClient.document.update({
+      data: { processingStatus: DocumentProcessingStatus.QUEUED },
+      where: { id: document.id },
+    });
+
+    // Second run should replace, not duplicate, sections
+    await processor({
+      attemptsMade: 1,
+      data: { documentId: document.id },
+      opts: { attempts: 3 },
+    });
+
+    const sections = await prismaClient.documentSection.findMany({
+      where: { documentId: document.id },
+    });
+    expect(sections).toHaveLength(1);
   });
 
   it('rejects malformed payloads before any storage or parser work begins', async () => {
@@ -258,6 +306,7 @@ class RecordingParserAdapter implements DocumentParserAdapter {
           },
         },
       ],
+      warnings: [],
     };
   }
 }

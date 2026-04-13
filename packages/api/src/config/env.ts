@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const apiEnvSchema = z.object({
+  ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
   APP_VERSION: z.string().default('0.1.0'),
   COOKIE_SECRET: z
     .string()

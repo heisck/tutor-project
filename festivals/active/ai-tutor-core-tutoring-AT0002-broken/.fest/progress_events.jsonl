@@ -50,3 +50,4 @@
 {"ts":"2026-04-13T17:55:59.097794753Z","event":"wf_step_done","phase":"gate:002_PLAN","step":3}
 {"ts":"2026-04-13T18:09:50.818002998Z","event":"completed","task":"003_CONTENT_PIPELINE/01_ingestion_pipeline/01_tutoring_data_schema_and_shared_contracts.md"}
 {"ts":"2026-04-13T18:21:07.949843067Z","event":"completed","task":"003_CONTENT_PIPELINE/01_ingestion_pipeline/02_background_worker_retrieval_and_parser_orchestration.md"}
+{"ts":"2026-04-13T18:36:32.319334005Z","event":"completed","task":"003_CONTENT_PIPELINE/01_ingestion_pipeline/03_pdf_normalized_extraction.md"}
