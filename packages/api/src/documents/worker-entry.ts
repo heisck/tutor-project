@@ -1,6 +1,9 @@
 import { getPrismaClient } from '@ai-tutor-pwa/db';
 
 import { loadApiEnv } from '../config/env.js';
+import { createAtuMapperClient } from '../knowledge/atu-mapper.js';
+import { createConceptAnalyzerClient } from '../knowledge/concept-analyzer.js';
+import { createEmbeddingClient } from '../knowledge/embedding-client.js';
 import {
   createR2DocumentSourceStorageClient,
   createR2UploadStorageClient,
@@ -16,6 +19,9 @@ const prisma = getPrismaClient();
 
 const worker = createDocumentWorkerEntryPoint({
   assetStorageClient: createR2UploadStorageClient(env),
+  atuMapperClient: createAtuMapperClient(env.ANTHROPIC_API_KEY),
+  conceptAnalyzerClient: createConceptAnalyzerClient(env.ANTHROPIC_API_KEY),
+  embeddingClient: createEmbeddingClient({ apiKey: env.OPENAI_API_KEY }),
   env,
   parserAdapters: [
     createPdfDocumentParserAdapter(),

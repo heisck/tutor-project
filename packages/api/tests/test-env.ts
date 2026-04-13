@@ -15,6 +15,7 @@ export function createApiTestEnv(
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
     GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/v1/auth/oauth/callback',
     NODE_ENV: 'test',
+    OPENAI_API_KEY: 'test-openai-api-key',
     PORT: '4000',
     REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
     R2_ACCESS_KEY_ID: 'test-r2-access-key-id',

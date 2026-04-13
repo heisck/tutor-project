@@ -14,6 +14,12 @@ import {
   type DocumentParserAdapter,
   UnrecoverableDocumentParserError,
 } from './parsers.js';
+import { generateAtus, type AtuMapperClient } from '../knowledge/atu-mapper.js';
+import { generateDocumentChunks } from '../knowledge/chunk-pipeline.js';
+import { generateConceptGraph, type ConceptAnalyzerClient } from '../knowledge/concept-analyzer.js';
+import { initializeCoverageLedger } from '../knowledge/coverage-ledger.js';
+import type { EmbeddingClient } from '../knowledge/embedding-client.js';
+import { generateSourceUnits } from '../knowledge/source-units.js';
 import { persistNormalizedDocumentStructure } from './persistence.js';
 import { transitionDocumentProcessingStatus } from './service.js';
 import type { VisionDescriptionClient } from './vision-client.js';
@@ -26,6 +32,9 @@ interface JobLike {
 
 export interface DocumentProcessingWorkerDependencies {
   assetStorageClient?: UploadStorageClient;
+  atuMapperClient?: AtuMapperClient | null;
+  conceptAnalyzerClient?: ConceptAnalyzerClient | null;
+  embeddingClient?: EmbeddingClient | null;
   env: Pick<ApiEnv, 'REDIS_URL'>;
   parserAdapters: readonly DocumentParserAdapter[];
   prisma: DatabaseClient;
@@ -142,6 +151,41 @@ export function createDocumentProcessingJobProcessor(
         structure,
         userId: document.userId,
       });
+
+      await generateSourceUnits(dependencies.prisma, {
+        documentId: document.id,
+        userId: document.userId,
+      });
+
+      await generateDocumentChunks(
+        dependencies.prisma,
+        dependencies.embeddingClient ?? null,
+        {
+          documentId: document.id,
+          userId: document.userId,
+        },
+      );
+
+      if (dependencies.atuMapperClient != null) {
+        await generateAtus(
+          dependencies.prisma,
+          dependencies.atuMapperClient,
+          { documentId: document.id, userId: document.userId },
+        );
+
+        if (dependencies.conceptAnalyzerClient != null) {
+          await generateConceptGraph(
+            dependencies.prisma,
+            dependencies.conceptAnalyzerClient,
+            { documentId: document.id, userId: document.userId },
+          );
+
+          await initializeCoverageLedger(dependencies.prisma, {
+            documentId: document.id,
+            userId: document.userId,
+          });
+        }
+      }
 
       await transitionDocumentProcessingStatus(dependencies.prisma, {
         documentId: document.id,

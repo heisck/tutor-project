@@ -22,6 +22,7 @@ const apiEnvSchema = z.object({
     error: 'GOOGLE_REDIRECT_URI must be a valid URL',
   }),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
   PORT: z.coerce.number().int().positive().default(4000),
   REDIS_URL: z.url({ error: 'REDIS_URL must be a valid URL' }),
   R2_ACCESS_KEY_ID: z.string().min(1, 'R2_ACCESS_KEY_ID is required'),

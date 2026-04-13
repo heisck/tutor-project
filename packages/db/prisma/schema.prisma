@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 enum AuthProvider {
@@ -42,6 +44,37 @@ enum DocumentAssetKind {
   DIAGRAM
 }
 
+enum SourceUnitCategory {
+  TEXT
+  HEADING
+  LIST
+  TABLE
+  FORMULA
+  CAPTION
+  VISUAL
+}
+
+enum AtuCategory {
+  CONCEPT
+  FACT
+  PROCEDURE
+  PRINCIPLE
+  DEFINITION
+}
+
+enum AtuDifficulty {
+  INTRODUCTORY
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CoverageStatus {
+  NOT_TAUGHT
+  IN_PROGRESS
+  TAUGHT
+  ASSESSED
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -61,7 +94,13 @@ model User {
   documents     Document[]
   documentAssets   DocumentAsset[]
   documentSections DocumentSection[]
-  sessions      AuthSession[]
+  sourceUnits      SourceUnit[]
+  documentChunks   DocumentChunk[]
+  atus             AtomicTeachableUnit[]
+  concepts         Concept[]
+  misconceptions   Misconception[]
+  coverageLedger   CoverageLedger[]
+  sessions         AuthSession[]
 
   @@index([institutionId])
 }
@@ -122,6 +161,13 @@ model Document {
   nextVersion      Document?                @relation("DocumentSupersession", fields: [supersededBy], references: [id], onDelete: SetNull)
   previousVersions Document[]               @relation("DocumentSupersession")
   sections         DocumentSection[]
+  sourceUnits      SourceUnit[]
+  chunks           DocumentChunk[]
+  atus                  AtomicTeachableUnit[]
+  concepts              Concept[]
+  conceptPrerequisites  ConceptPrerequisite[]
+  misconceptions        Misconception[]
+  coverageLedger        CoverageLedger[]
 
   @@index([courseId])
   @@index([processingStatus])
@@ -140,6 +186,7 @@ model DocumentSection {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   assets      DocumentAsset[]
+  sourceUnits SourceUnit[]
   document    Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -164,6 +211,7 @@ model DocumentAsset {
   sourceTrace Json
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  sourceUnits SourceUnit[]
   document    Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
   section     DocumentSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -172,4 +220,154 @@ model DocumentAsset {
   @@index([sectionId])
   @@index([userId])
   @@unique([documentId, ordinal])
+}
+
+model SourceUnit {
+  id          String             @id @default(cuid())
+  documentId  String
+  userId      String
+  sectionId   String?
+  assetId     String?
+  ordinal     Int
+  category    SourceUnitCategory
+  content     String
+  title       String?
+  sourceTrace Json
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  document    Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section     DocumentSection?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  asset       DocumentAsset?     @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  chunks      DocumentChunk[]
+  atus        AtomicTeachableUnit[]
+
+  @@index([documentId])
+  @@index([userId])
+  @@unique([documentId, ordinal])
+}
+
+model DocumentChunk {
+  id           String                      @id @default(cuid())
+  documentId   String
+  userId       String
+  sourceUnitId String
+  ordinal      Int
+  content      String
+  tokenCount   Int
+  embedding    Unsupported("vector(1536)")?
+  sourceTrace  Json
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+  document     Document                    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user         User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceUnit   SourceUnit                  @relation(fields: [sourceUnitId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([sourceUnitId])
+  @@unique([documentId, ordinal])
+}
+
+model AtomicTeachableUnit {
+  id            String        @id @default(cuid())
+  documentId    String
+  userId        String
+  sourceUnitId  String
+  conceptId     String?
+  ordinal       Int
+  title         String
+  content       String
+  category      AtuCategory
+  difficulty    AtuDifficulty
+  examRelevance Boolean       @default(false)
+  isImplied     Boolean       @default(false)
+  sourceTrace   Json
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  document      Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceUnit    SourceUnit    @relation(fields: [sourceUnitId], references: [id], onDelete: Cascade)
+  concept       Concept?      @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  coverageLedger CoverageLedger[]
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([sourceUnitId])
+  @@index([conceptId])
+  @@unique([documentId, ordinal])
+}
+
+model Concept {
+  id               String                @id @default(cuid())
+  documentId       String
+  userId           String
+  title            String
+  description      String
+  ordinal          Int
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  document         Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  atus             AtomicTeachableUnit[]
+  misconceptions   Misconception[]
+  prerequisiteFor  ConceptPrerequisite[] @relation("PrerequisiteConcept")
+  dependsOn        ConceptPrerequisite[] @relation("DependentConcept")
+
+  @@index([documentId])
+  @@index([userId])
+  @@unique([documentId, ordinal])
+}
+
+model ConceptPrerequisite {
+  id              String   @id @default(cuid())
+  documentId      String
+  prerequisiteId  String
+  dependentId     String
+  createdAt       DateTime @default(now())
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  prerequisite    Concept  @relation("PrerequisiteConcept", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  dependent       Concept  @relation("DependentConcept", fields: [dependentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([prerequisiteId])
+  @@index([dependentId])
+  @@unique([prerequisiteId, dependentId])
+}
+
+model Misconception {
+  id          String   @id @default(cuid())
+  documentId  String
+  userId      String
+  conceptId   String
+  title       String
+  description String
+  severity    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept     Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([conceptId])
+  @@index([userId])
+}
+
+model CoverageLedger {
+  id        String         @id @default(cuid())
+  documentId String
+  userId    String
+  atuId     String
+  status    CoverageStatus @default(NOT_TAUGHT)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  document  Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  atu       AtomicTeachableUnit @relation(fields: [atuId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([atuId])
+  @@unique([documentId, atuId])
 }
