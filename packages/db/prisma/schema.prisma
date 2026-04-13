@@ -6,3 +6,71 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+}
+
+enum UserRole {
+  STUDENT
+  ADMIN
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  authProvider  AuthProvider
+  emailVerified Boolean       @default(false)
+  username      String?
+  institutionId String?
+  department    String?
+  level         String?
+  role          UserRole      @default(STUDENT)
+  passwordHash  String?
+  googleSubject String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  institution   Institution?  @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  courses       Course[]
+  sessions      AuthSession[]
+
+  @@index([institutionId])
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Institution {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  country   String?
+  type      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model Course {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  code      String?
+  level     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

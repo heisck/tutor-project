@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 const apiEnvSchema = z.object({
   APP_VERSION: z.string().default('0.1.0'),
+  COOKIE_SECRET: z
+    .string()
+    .min(32, 'COOKIE_SECRET must be at least 32 characters long'),
   CORS_ORIGINS: z
     .string()
     .min(1, 'CORS_ORIGINS is required')
@@ -12,9 +15,19 @@ const apiEnvSchema = z.object({
         .filter((origin) => origin.length > 0),
     ),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
+  GOOGLE_CLIENT_SECRET: z.string().min(1, 'GOOGLE_CLIENT_SECRET is required'),
+  GOOGLE_REDIRECT_URI: z.url({
+    error: 'GOOGLE_REDIRECT_URI must be a valid URL',
+  }),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   REDIS_URL: z.url({ error: 'REDIS_URL must be a valid URL' }),
+  SESSION_TTL_HOURS: z.coerce
+    .number()
+    .int()
+    .positive('SESSION_TTL_HOURS must be a positive integer')
+    .default(168),
 });
 
 export type ApiEnv = z.output<typeof apiEnvSchema>;
