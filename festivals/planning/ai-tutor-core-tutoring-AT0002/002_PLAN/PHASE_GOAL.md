@@ -1,61 +1,45 @@
----
-fest_type: phase
-fest_id: 002_PLAN
-fest_name: PLAN
-fest_parent: ai-tutor-core-tutoring-AT0002
-fest_order: 2
-fest_status: pending
-fest_created: 2026-04-13T08:09:02.128238439Z
-fest_phase_type: planning
-fest_tracking: true
----
-
-# Phase Goal: [REPLACE: Phase name like 001_PLANNING]
+# Phase Goal: 002_PLAN
 
 **Phase:** 002_PLAN | **Status:** Pending | **Type:** Planning
 
 ## Phase Objective
 
-**Primary Goal:** Plan architecture, design decisions, and task breakdown
+**Primary Goal:** Design the full architecture, system decomposition, and implementation plan for the tutoring engine.
 
-**Context:** [REPLACE: Why this planning is needed before implementation can begin]
+**Context:** Uses structured outputs from ingest phase to define how the tutoring system will actually be built, broken into FEST phases, sequences, and tasks.
 
 ## Exploration Topics
 
-What areas need to be explored during this phase:
-
-- [REPLACE: Topic or area to investigate]
-
-<!-- Add more exploration topics as identified -->
+- Ingestion pipeline architecture (PDF, PPTX, DOCX)
+- ATU mapping and concept graph design
+- Tutor decision loop execution model
+- Confusion detection and mastery tracking system
+- SSE streaming architecture
+- Vector retrieval and embedding strategy
+- Session state and persistence model
 
 ## Key Questions to Answer
 
-Questions that must be answered before this phase is complete:
-
-- [REPLACE: Critical question that needs resolution]
-
-<!-- Add more questions as they emerge -->
+- How will ingestion pipeline be structured step-by-step?
+- How will ATUs and concepts be stored and linked?
+- How will tutor decision loop be enforced deterministically?
+- How will confusion detection be implemented reliably?
+- How will session continuity be restored exactly?
+- How will token limits be enforced across all LLM calls?
 
 ## Expected Documents
 
-Documents that will be produced during this phase:
-
-- [REPLACE: Document name and purpose]
-
-<!-- Add more documents as planning progresses -->
+- `plan/STRUCTURE.md` — FEST hierarchy (phases, sequences, tasks)
+- `plan/IMPLEMENTATION_PLAN.md` — full execution plan
+- `decisions/` — architecture decisions and tradeoffs
 
 ## Success Criteria
 
-This planning phase is complete when:
-
-- [ ] [REPLACE: Key planning outcome achieved]
-
-<!-- Add more success criteria as they become clear -->
+- [ ] System fully decomposed into phases, sequences, tasks
+- [ ] Architecture decisions documented
+- [ ] Implementation plan complete and executable
+- [ ] No unresolved critical questions
 
 ## Notes
 
-[REPLACE: Any assumptions, constraints, or open items]
-
----
-
-*Planning phases use freeform structure. Create topic directories as needed.*
+This phase converts system design into an executable FEST structure.

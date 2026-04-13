@@ -1,64 +1,37 @@
----
-fest_type: phase
-fest_id: 001_INGEST
-fest_name: INGEST
-fest_parent: ai-tutor-core-tutoring-AT0002
-fest_order: 1
-fest_status: pending
-fest_created: 2026-04-13T08:09:01.531268169Z
-fest_phase_type: ingest
-fest_tracking: true
----
-
-# Phase Goal: [REPLACE: Phase name like 001_INGEST]
+# Phase Goal: 001_INGEST
 
 **Phase:** 001_INGEST | **Status:** Pending | **Type:** Ingest
 
 ## Phase Objective
 
-**Primary Goal:** Ingest and structure input materials into actionable specifications
+**Primary Goal:** Transform the defined tutoring system vision and requirements into structured, actionable specifications for implementation.
 
-**Context:** [REPLACE: Where the input came from and how the structured output will be used]
+**Context:** Input comes from FESTIVAL_GOAL.md and FESTIVAL_OVERVIEW.md of AT0002. The output will be used by the planning phase to design architecture, tasks, and implementation structure.
 
 ## Input Sources
 
 Place all raw input materials in `input_specs/`:
 
-- [ ] [REPLACE: Input source 1 - e.g., user requirements document]
-- [ ] [REPLACE: Input source 2 - e.g., reference materials]
-- [ ] [REPLACE: Additional sources as needed]
+- [x] FESTIVAL_GOAL.md (core objectives and success criteria)
+- [x] FESTIVAL_OVERVIEW.md (system architecture and engines)
+- [x] Previous festival AT0001 outputs (foundation system)
 
 ## Expected Outputs
 
-The following structured documents will be created in `output_specs/`:
-
 | Output | Purpose |
 |--------|---------|
-| `purpose.md` | Festival purpose, success criteria, motivation |
-| `requirements.md` | Prioritized requirements (P0/P1/P2) with traceability |
-| `constraints.md` | Technical and process constraints |
-| `context.md` | Prior art, related systems, key references |
+| `purpose.md` | Full system purpose, goals, and success criteria |
+| `requirements.md` | Structured requirements derived from success criteria |
+| `constraints.md` | Technical and system constraints |
+| `context.md` | System context, prior system (AT0001), and references |
 
 ## Success Criteria
 
-This ingest phase is complete when:
-
-- [ ] All input sources reviewed and understood
-- [ ] Output specs created following standard structure
-- [ ] User has approved the structured output
-- [ ] No unresolved questions or ambiguities
-
-## Workflow
-
-This phase uses step-based workflow guidance. See `WORKFLOW.md` for the step-by-step process.
-
-Use `fest next` to see the current step.
-Use `fest workflow advance` to move to the next step.
+- [ ] All inputs fully understood
+- [ ] Requirements extracted and structured clearly
+- [ ] No ambiguity blocking planning phase
+- [ ] Outputs ready for architecture planning
 
 ## Notes
 
-[REPLACE: Any assumptions, constraints, or open items]
-
----
-
-*Ingest phases transform unstructured input into structured specifications ready for planning.*
+This phase translates the already-written vision into structured engineering specifications.

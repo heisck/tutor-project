@@ -1,7 +1,7 @@
 # Festival TODO - ai-tutor-core-tutoring
 
-**Goal**: [REPLACE: Primary objective in one clear sentence]
-**Status**: [REPLACE: Planning/Active/Review/Complete]
+**Goal**: Build the full adaptive AI tutoring engine from ingestion to live teaching
+**Status**: Planning
 
 ---
 
@@ -9,37 +9,45 @@
 
 ### Phase Completion Status
 
-- [ ] [REPLACE: First phase name and brief description]
+- [ ] 001_INGEST — Convert system vision into structured specs
+- [ ] 002_PLAN — Design architecture and implementation plan
 
-<!-- Add phases as they're created -->
+---
 
-### Current Work Status
+## Current Work Status
 
-```
-Active Phase: [REPLACE: Phase name]
-Active Sequences: [REPLACE: Sequence names or N/A for planning phases]
-Blockers: [REPLACE: List blockers or None]
-```
+Active Phase: 001_INGEST
+Active Sequences: N/A
+Blockers: None
 
 ---
 
 ## Phase Progress
 
-### [REPLACE: Phase Name]
+### 001_INGEST
 
-**Status**: [REPLACE: Not Started/In Progress/Completed/Blocked]
+**Status**: Not Started
 
 #### Sequences
 
-- [ ] [REPLACE: First sequence name]
+- [ ] Extract requirements from FESTIVAL_GOAL and OVERVIEW
+- [ ] Structure output specs
 
-<!-- Add sequences as they're created -->
+---
+
+### 002_PLAN
+
+**Status**: Not Started
+
+#### Sequences
+
+- [ ] Decompose system into FEST structure
+- [ ] Define architecture decisions
+- [ ] Build implementation plan
 
 ---
 
 ## Blockers
-
-<!-- Add blockers as they arise -->
 
 None currently.
 
@@ -47,8 +55,4 @@ None currently.
 
 ## Decision Log
 
-<!-- Add decisions as they're made -->
-
----
-
-*Detailed progress available via `fest status`*
+(To be filled during planning)
