@@ -2,6 +2,7 @@ export * from './client.js';
 export * from './env.js';
 export * from './tutoring-content.js';
 export {
+  AcademicLevel,
   AtuCategory,
   AtuDifficulty,
   AuthProvider,
@@ -9,7 +10,12 @@ export {
   DocumentAssetKind,
   DocumentProcessingStatus,
   DocumentSectionKind,
+  ExplanationStartPreference,
+  MotivationState,
   SourceUnitCategory,
+  StudyGoalPreference,
+  StudySessionMode,
+  StudySessionStatus,
   UserRole,
   type AtomicTeachableUnit,
   type AuthSession,
@@ -22,8 +28,10 @@ export {
   type DocumentChunk,
   type DocumentSection,
   type Institution,
+  type LearningProfile,
   type Misconception,
   type Prisma,
   type SourceUnit,
+  type StudySession,
   type User,
 } from '@prisma/client';

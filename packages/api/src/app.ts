@@ -22,6 +22,7 @@ import {
   type RedisClient,
 } from './lib/redis.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerStudySessionRoutes } from './sessions/routes.js';
 
 export interface BuildAppOptions {
   documentProcessingQueue?: DocumentProcessingQueue;
@@ -100,6 +101,11 @@ export async function buildApp(
     env,
     prisma: prismaClient,
     redis: redisClient,
+  });
+
+  await registerStudySessionRoutes(app, {
+    env,
+    prisma: prismaClient,
   });
 
   app.addHook('onClose', async () => {

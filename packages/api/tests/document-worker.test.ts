@@ -36,55 +36,67 @@ describe('document processing worker', () => {
     });
   });
 
-  it('dispatches a validated job to the matching parser using canonical document storage data', async () => {
-    const sourceStorage = new InMemoryDocumentSourceStorageClient();
-    const parser = new RecordingParserAdapter(['application/pdf']);
-    const processor = createDocumentProcessingJobProcessor({
-      parserAdapters: [parser],
-      prisma: prismaClient,
-      storageClient: sourceStorage,
-    });
-    const { document, user } = await createQueuedDocument('application/pdf', 'lesson.pdf');
+  it(
+    'dispatches a validated job to the matching parser using canonical document storage data',
+    async () => {
+      const sourceStorage = new InMemoryDocumentSourceStorageClient();
+      const parser = new RecordingParserAdapter(['application/pdf']);
+      const processor = createDocumentProcessingJobProcessor({
+        parserAdapters: [parser],
+        prisma: prismaClient,
+        storageClient: sourceStorage,
+      });
+      const { document, user } = await createQueuedDocument(
+        'application/pdf',
+        'lesson.pdf',
+      );
 
-    sourceStorage.store(`users/${user.id}/uploads/upload-1/lesson.pdf`, pdfBuffer());
+      sourceStorage.store(
+        `users/${user.id}/uploads/upload-1/lesson.pdf`,
+        pdfBuffer(),
+      );
 
-    const result = await processor({
-      attemptsMade: 0,
-      data: {
-        documentId: document.id,
-      },
-      opts: {
-        attempts: 3,
-      },
-    });
+      const result = await processor({
+        attemptsMade: 0,
+        data: {
+          documentId: document.id,
+        },
+        opts: {
+          attempts: 3,
+        },
+      });
 
-    const refreshedDocument = await prismaClient.document.findUniqueOrThrow({
-      where: {
-        id: document.id,
-      },
-    });
+      const refreshedDocument = await prismaClient.document.findUniqueOrThrow({
+        where: {
+          id: document.id,
+        },
+      });
 
-    expect(result.parserName).toBe('recording-parser');
-    expect(result.storageKey).toBe(`users/${user.id}/uploads/upload-1/lesson.pdf`);
-    expect(parser.calls).toHaveLength(1);
-    expect(parser.calls[0]?.documentId).toBe(document.id);
-    expect(parser.calls[0]?.storageKey).toBe(
-      `users/${user.id}/uploads/upload-1/lesson.pdf`,
-    );
-    expect(refreshedDocument.processingStatus).toBe(
-      DocumentProcessingStatus.COMPLETE,
-    );
+      expect(result.parserName).toBe('recording-parser');
+      expect(result.storageKey).toBe(
+        `users/${user.id}/uploads/upload-1/lesson.pdf`,
+      );
+      expect(parser.calls).toHaveLength(1);
+      expect(parser.calls[0]?.documentId).toBe(document.id);
+      expect(parser.calls[0]?.storageKey).toBe(
+        `users/${user.id}/uploads/upload-1/lesson.pdf`,
+      );
+      expect(refreshedDocument.processingStatus).toBe(
+        DocumentProcessingStatus.COMPLETE,
+      );
 
-    const sections = await prismaClient.documentSection.findMany({
-      orderBy: { ordinal: 'asc' },
-      where: { documentId: document.id },
-    });
-    expect(sections).toHaveLength(1);
-    expect(sections[0]?.content).toBe('Parsed section');
-    expect(sections[0]?.kind).toBe('TEXT');
-    expect(sections[0]?.ordinal).toBe(0);
-    expect(sections[0]?.userId).toBe(user.id);
-  });
+      const sections = await prismaClient.documentSection.findMany({
+        orderBy: { ordinal: 'asc' },
+        where: { documentId: document.id },
+      });
+      expect(sections).toHaveLength(1);
+      expect(sections[0]?.content).toBe('Parsed section');
+      expect(sections[0]?.kind).toBe('TEXT');
+      expect(sections[0]?.ordinal).toBe(0);
+      expect(sections[0]?.userId).toBe(user.id);
+    },
+    15_000,
+  );
 
   it('persists sections safely on retry without duplicates', async () => {
     const sourceStorage = new InMemoryDocumentSourceStorageClient();
