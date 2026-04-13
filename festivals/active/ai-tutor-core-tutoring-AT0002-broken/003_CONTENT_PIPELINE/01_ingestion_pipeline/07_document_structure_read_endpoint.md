@@ -4,7 +4,7 @@ fest_id: 07_document_structure_read_endpoint.md
 fest_name: document structure read endpoint
 fest_parent: 01_ingestion_pipeline
 fest_order: 7
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:32.189201248Z
 fest_tracking: true

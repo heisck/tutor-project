@@ -11,10 +11,9 @@ const CAPTION_REGEX = /^(?:figure|fig\.?|table)\s+\d+/i;
 const FORMULA_REGEX = /[=+\-*/^<>≤≥±×÷√∑∫]/;
 const LIST_REGEX = /^(?:[-*•]\s+|\d+[.)]\s+)/;
 
-export interface NormalizedAssetDraft extends Omit<NormalizedDocumentAsset, 'ordinal'> {}
+export type NormalizedAssetDraft = Omit<NormalizedDocumentAsset, 'ordinal'>;
 
-export interface NormalizedSectionDraft
-  extends Omit<NormalizedDocumentSection, 'ordinal'> {}
+export type NormalizedSectionDraft = Omit<NormalizedDocumentSection, 'ordinal'>;
 
 export function finalizeNormalizedDocumentStructure(input: {
   assets?: readonly NormalizedAssetDraft[];

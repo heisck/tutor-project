@@ -1,4 +1,10 @@
-import type { DocumentAssetKind, SourceTrace } from '@ai-tutor-pwa/shared';
+import type {
+  DocumentAssetKind,
+  NormalizedExtractionWarning,
+  SourceTrace,
+} from '@ai-tutor-pwa/shared';
+
+import type { NormalizedSectionDraft } from './normalized-structure.js';
 
 /**
  * Raw asset extracted during document parsing, before storage or description.
@@ -16,8 +22,8 @@ export interface ExtractedDocumentAsset {
 
 export interface DocumentExtractionResult {
   assets: readonly ExtractedDocumentAsset[];
-  sections: readonly import('./normalized-structure.js').NormalizedSectionDraft[];
-  warnings: readonly import('@ai-tutor-pwa/shared').NormalizedExtractionWarning[];
+  sections: readonly NormalizedSectionDraft[];
+  warnings: readonly NormalizedExtractionWarning[];
 }
 
 const IMAGE_EXTENSIONS_TO_MIME: ReadonlyMap<string, string> = new Map([
@@ -47,6 +53,14 @@ export function resolveImageMimeType(filename: string): string | null {
   return IMAGE_EXTENSIONS_TO_MIME.get(extension) ?? null;
 }
 
+const MIME_TO_EXTENSION: ReadonlyMap<string, string> = new Map(
+  [...IMAGE_EXTENSIONS_TO_MIME.entries()].map(([ext, mime]) => [mime, ext.slice(1)]),
+);
+
 export function isVisionSupportedMimeType(mimeType: string): boolean {
   return SUPPORTED_VISION_MIME_TYPES.has(mimeType);
+}
+
+export function mimeTypeToExtension(mimeType: string): string {
+  return MIME_TO_EXTENSION.get(mimeType) ?? 'bin';
 }

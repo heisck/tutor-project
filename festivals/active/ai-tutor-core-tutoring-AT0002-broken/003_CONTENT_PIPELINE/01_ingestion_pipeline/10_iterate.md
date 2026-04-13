@@ -8,7 +8,7 @@ fest_managed: true
 fest_name: Review Results and Iterate
 fest_order: 10
 fest_parent: 01_ingestion_pipeline
-fest_status: pending
+fest_status: completed
 fest_tracking: true
 fest_type: gate
 fest_version: "1.0"

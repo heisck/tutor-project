@@ -1,5 +1,9 @@
 import type { DatabaseClient } from '@ai-tutor-pwa/db';
-import type { DocumentStatusResponse, UploadStatusResponse } from '@ai-tutor-pwa/shared';
+import type {
+  DocumentStatusResponse,
+  DocumentStructureResponse,
+  UploadStatusResponse,
+} from '@ai-tutor-pwa/shared';
 import type { FastifyInstance } from 'fastify';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
@@ -67,6 +71,63 @@ export async function registerDocumentRoutes(
       }
 
       return documentStatus;
+    },
+  );
+
+  app.get(
+    '/api/v1/documents/:documentId/structure',
+    {
+      preHandler: [requireAuth],
+    },
+    async (request, reply): Promise<DocumentStructureResponse | void> => {
+      const documentId = (request.params as { documentId: string }).documentId;
+      const userId = request.auth!.userId;
+
+      const document = await dependencies.prisma.document.findFirst({
+        where: {
+          id: documentId,
+          userId,
+        },
+      });
+
+      if (document === null) {
+        return reply.status(404).send({
+          message: 'Document not found',
+        });
+      }
+
+      const [sections, assets] = await Promise.all([
+        dependencies.prisma.documentSection.findMany({
+          orderBy: { ordinal: 'asc' },
+          where: { documentId },
+        }),
+        dependencies.prisma.documentAsset.findMany({
+          orderBy: { ordinal: 'asc' },
+          where: { documentId },
+        }),
+      ]);
+
+      return {
+        assets: assets.map((asset) => ({
+          ...(asset.description !== null ? { description: asset.description } : {}),
+          ...(asset.height !== null ? { height: asset.height } : {}),
+          kind: asset.kind.toLowerCase(),
+          mimeType: asset.mimeType,
+          ordinal: asset.ordinal,
+          sourceTrace: asset.sourceTrace as Record<string, unknown>,
+          storageKey: asset.storageKey,
+          ...(asset.title !== null ? { title: asset.title } : {}),
+          ...(asset.width !== null ? { width: asset.width } : {}),
+        })),
+        documentId,
+        sections: sections.map((section) => ({
+          content: section.content,
+          kind: section.kind.toLowerCase(),
+          ordinal: section.ordinal,
+          sourceTrace: section.sourceTrace as Record<string, unknown>,
+          ...(section.title !== null ? { title: section.title } : {}),
+        })),
+      };
     },
   );
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   DocumentProcessingStatus,
+  DocumentSectionKind,
   createPrismaClient,
 } from '@ai-tutor-pwa/db';
 import { AUTH_PATHS } from '@ai-tutor-pwa/shared';
@@ -179,6 +180,103 @@ describe('document records and processing status', () => {
     );
     expect(indexingDocument.processingStatus).toBe(DocumentProcessingStatus.INDEXING);
     expect(completedDocument.processingStatus).toBe(DocumentProcessingStatus.COMPLETE);
+  });
+});
+
+describe('document structure endpoint', () => {
+  it('returns persisted sections and assets for the owning user', async () => {
+    await signUp(agent, 'structure-owner');
+    const finishResponse = await completeUpload(agent, 'structure-owner.pdf');
+    const documentId = finishResponse.body.document.id as string;
+
+    // Get the user ID from the session
+    const sessionResponse = await agent.get('/api/v1/auth/session');
+    const userId = sessionResponse.body.user.id as string;
+
+    // Transition to COMPLETE and add test data
+    await transitionDocumentProcessingStatus(prismaClient, {
+      documentId,
+      nextStatus: DocumentProcessingStatus.QUEUED,
+    });
+    await transitionDocumentProcessingStatus(prismaClient, {
+      documentId,
+      nextStatus: DocumentProcessingStatus.PROCESSING,
+    });
+    await transitionDocumentProcessingStatus(prismaClient, {
+      documentId,
+      nextStatus: DocumentProcessingStatus.EXTRACTING,
+    });
+    await transitionDocumentProcessingStatus(prismaClient, {
+      documentId,
+      nextStatus: DocumentProcessingStatus.INDEXING,
+    });
+
+    await prismaClient.documentSection.create({
+      data: {
+        content: 'Introduction to Biology',
+        documentId,
+        kind: DocumentSectionKind.HEADING,
+        ordinal: 0,
+        sourceTrace: { format: 'pdf', headingPath: [], order: 0, pageNumber: 1 },
+        title: 'Introduction to Biology',
+        userId,
+      },
+    });
+    await prismaClient.documentSection.create({
+      data: {
+        content: 'Cells are the basic unit of life.',
+        documentId,
+        kind: DocumentSectionKind.TEXT,
+        ordinal: 1,
+        sourceTrace: { format: 'pdf', headingPath: ['Introduction to Biology'], order: 1, pageNumber: 1 },
+        userId,
+      },
+    });
+
+    await transitionDocumentProcessingStatus(prismaClient, {
+      documentId,
+      nextStatus: DocumentProcessingStatus.COMPLETE,
+    });
+
+    const response = await agent.get(`/api/v1/documents/${documentId}/structure`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.documentId).toBe(documentId);
+    expect(response.body.sections).toHaveLength(2);
+    expect(response.body.sections[0].content).toBe('Introduction to Biology');
+    expect(response.body.sections[0].kind).toBe('heading');
+    expect(response.body.sections[0].ordinal).toBe(0);
+    expect(response.body.sections[1].content).toBe('Cells are the basic unit of life.');
+    expect(response.body.assets).toEqual([]);
+  });
+
+  it('rejects unauthenticated access', async () => {
+    const response = await request(app.server).get('/api/v1/documents/any-id/structure');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects cross-user access to document structure', async () => {
+    await signUp(agent, 'structure-a');
+    const finishResponse = await completeUpload(agent, 'structure-a.pdf');
+
+    const secondAgent = request.agent(app.server);
+    await signUp(secondAgent, 'structure-b');
+
+    const response = await secondAgent.get(
+      `/api/v1/documents/${finishResponse.body.document.id}/structure`,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it('returns 404 for nonexistent document', async () => {
+    await signUp(agent, 'structure-missing');
+
+    const response = await agent.get('/api/v1/documents/does-not-exist/structure');
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: 'Document not found' });
   });
 });
 

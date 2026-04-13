@@ -38,33 +38,7 @@ export function createPptxDocumentParserAdapter(): DocumentParserAdapter {
 export async function parsePptxDocument(
   fileBuffer: Buffer,
 ): Promise<NormalizedDocumentStructure> {
-  const archive = await loadOoxmlArchive(fileBuffer, 'pptx');
-  const slideEntries = await readArchiveXmlEntries(
-    archive,
-    'pptx',
-    /^ppt\/slides\/slide\d+\.xml$/,
-  );
-  const sections: NormalizedSectionDraft[] = [];
-  const warnings: NormalizedExtractionWarning[] = [];
-
-  for (let slideIndex = 0; slideIndex < slideEntries.length; slideIndex += 1) {
-    const slideNumber = slideIndex + 1;
-    const slideSections = parsePptxSlide(slideEntries[slideIndex]!.nodes, slideNumber);
-
-    if (slideSections.length === 0) {
-      warnings.push(
-        createMissingExtractableTextWarning({
-          format: 'pptx',
-          message: 'No extractable text was found on this slide.',
-          sourceId: `pptx:slide:${slideNumber}:empty`,
-          slideNumber,
-        }),
-      );
-      continue;
-    }
-
-    sections.push(...slideSections);
-  }
+  const { sections, warnings } = await parsePptxSectionsAndWarnings(fileBuffer);
 
   return finalizeNormalizedDocumentStructure({
     sections,
@@ -75,6 +49,13 @@ export async function parsePptxDocument(
 export async function extractPptxDocument(
   fileBuffer: Buffer,
 ): Promise<DocumentExtractionResult> {
+  const { archive, sections, warnings } = await parsePptxSectionsAndWarnings(fileBuffer);
+  const assets = await extractOoxmlMediaAssets(archive, 'pptx');
+
+  return { assets, sections, warnings };
+}
+
+async function parsePptxSectionsAndWarnings(fileBuffer: Buffer) {
   const archive = await loadOoxmlArchive(fileBuffer, 'pptx');
   const slideEntries = await readArchiveXmlEntries(
     archive,
@@ -103,9 +84,7 @@ export async function extractPptxDocument(
     sections.push(...slideSections);
   }
 
-  const assets = await extractOoxmlMediaAssets(archive, 'pptx');
-
-  return { assets, sections, warnings };
+  return { archive, sections, warnings };
 }
 
 function parsePptxSlide(

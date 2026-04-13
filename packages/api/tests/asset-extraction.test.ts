@@ -230,7 +230,7 @@ describe('asset processing pipeline', () => {
     expect(structure.assets[0]!.description).toBeUndefined();
   });
 
-  it('skips assets when storage upload fails', async () => {
+  it('skips assets and adds warning when storage upload fails', async () => {
     const context = createContext({ storageClient: createFailingStorageClient() });
     const extraction = createExtractionWithAssets();
 
@@ -238,6 +238,8 @@ describe('asset processing pipeline', () => {
 
     expect(structure.assets).toEqual([]);
     expect(structure.sections).toHaveLength(1);
+    expect(structure.warnings).toHaveLength(1);
+    expect(structure.warnings[0]!.code).toBe('asset_storage_failed');
   });
 
   it('preserves sections and warnings in the finalized structure', async () => {

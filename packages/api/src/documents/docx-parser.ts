@@ -39,82 +39,7 @@ export function createDocxDocumentParserAdapter(): DocumentParserAdapter {
 export async function parseDocxDocument(
   fileBuffer: Buffer,
 ): Promise<NormalizedDocumentStructure> {
-  const archive = await loadOoxmlArchive(fileBuffer, 'docx');
-  const nodes = await readRequiredArchiveXml(archive, 'docx', 'word/document.xml');
-  const body = resolveDocxBody(nodes);
-  const bodyChildren = body.children.filter((child) => child.name !== '#text');
-  const sections: NormalizedSectionDraft[] = [];
-  const warnings: NormalizedExtractionWarning[] = [];
-  let headingPath: string[] = [];
-  let blockIndex = 0;
-
-  for (let childIndex = 0; childIndex < bodyChildren.length; childIndex += 1) {
-    const child = bodyChildren[childIndex]!;
-
-    if (child.name === 'tbl') {
-      const tableSection = parseDocxTable(child, headingPath, blockIndex);
-
-      if (tableSection !== null) {
-        sections.push(tableSection);
-        blockIndex += 1;
-      }
-
-      continue;
-    }
-
-    if (child.name !== 'p') {
-      continue;
-    }
-
-    const paragraph = parseDocxParagraph(child, headingPath, blockIndex);
-
-    if (paragraph === null) {
-      continue;
-    }
-
-    if (paragraph.kind === 'list') {
-      const listItems = [paragraph];
-
-      while (childIndex + 1 < bodyChildren.length) {
-        const nextChild = bodyChildren[childIndex + 1]!;
-
-        if (nextChild.name !== 'p') {
-          break;
-        }
-
-        const nextParagraph = parseDocxParagraph(nextChild, headingPath, blockIndex + listItems.length);
-
-        if (nextParagraph === null || nextParagraph.kind !== 'list') {
-          break;
-        }
-
-        listItems.push(nextParagraph);
-        childIndex += 1;
-      }
-
-      sections.push(mergeListSections(listItems, headingPath));
-      blockIndex += listItems.length;
-      continue;
-    }
-
-    sections.push(paragraph);
-
-    if (paragraph.kind === 'heading') {
-      headingPath = [paragraph.content];
-    }
-
-    blockIndex += 1;
-  }
-
-  if (sections.length === 0) {
-    warnings.push(
-      createMissingExtractableTextWarning({
-        format: 'docx',
-        message: 'No extractable text was found in this DOCX document.',
-        sourceId: 'docx:document:empty',
-      }),
-    );
-  }
+  const { sections, warnings } = await parseDocxSectionsAndWarnings(fileBuffer);
 
   return finalizeNormalizedDocumentStructure({
     sections,
@@ -125,6 +50,13 @@ export async function parseDocxDocument(
 export async function extractDocxDocument(
   fileBuffer: Buffer,
 ): Promise<DocumentExtractionResult> {
+  const { archive, sections, warnings } = await parseDocxSectionsAndWarnings(fileBuffer);
+  const assets = await extractOoxmlMediaAssets(archive, 'docx');
+
+  return { assets, sections, warnings };
+}
+
+async function parseDocxSectionsAndWarnings(fileBuffer: Buffer) {
   const archive = await loadOoxmlArchive(fileBuffer, 'docx');
   const nodes = await readRequiredArchiveXml(archive, 'docx', 'word/document.xml');
   const body = resolveDocxBody(nodes);
@@ -202,9 +134,7 @@ export async function extractDocxDocument(
     );
   }
 
-  const assets = await extractOoxmlMediaAssets(archive, 'docx');
-
-  return { assets, sections, warnings };
+  return { archive, sections, warnings };
 }
 
 function resolveDocxBody(nodes: readonly XmlNode[]): XmlNode {

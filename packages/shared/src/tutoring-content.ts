@@ -65,6 +65,7 @@ export const normalizedExtractionWarningCodeSchema = z.enum([
   'low_confidence_caption',
   'low_confidence_formula',
   'low_confidence_table',
+  'asset_storage_failed',
 ]);
 export type NormalizedExtractionWarningCode = z.infer<
   typeof normalizedExtractionWarningCodeSchema

@@ -8,7 +8,7 @@ fest_managed: true
 fest_name: Testing and Verification
 fest_order: 8
 fest_parent: 01_ingestion_pipeline
-fest_status: pending
+fest_status: completed
 fest_tracking: true
 fest_type: gate
 fest_version: "1.0"
