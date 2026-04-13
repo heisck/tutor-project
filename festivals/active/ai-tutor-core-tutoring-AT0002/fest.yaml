@@ -1,0 +1,53 @@
+version: "1.0"
+metadata:
+  id: AT0002
+  uuid: 594012cb-a71b-417e-a5c3-a4000cee1e2c
+  name: ai-tutor-core-tutoring
+  festival_type: standard
+  created_at: 2026-04-13T08:09:01.065792373Z
+  initial_size_bytes: 33695
+  status_history:
+    - status: active
+      timestamp: 2026-04-13T08:09:01.065792373Z
+      path: festivals/planning/ai-tutor-core-tutoring-AT0002
+      notes: Festival created
+type_config:
+  auto_phases:
+    - INGEST
+    - PLAN
+  pending_phases:
+    - name: IMPLEMENT
+      type: implementation
+    - name: POLISH
+      type: planning
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      name: Testing and Verification
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      name: Code Review
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      name: Review Results and Iterate
+      enabled: true
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
+      name: Fest Commit Changes
+      enabled: true
+excluded_patterns:
+  - '*_planning'
+  - '*_research'
+  - '*_requirements'
+  - '*_docs'
+templates:
+  task_default: tasks/SIMPLE
+  prefer_simple: true
+tracking:
+  enabled: true
+  checksum_file: .festival-checksums.json

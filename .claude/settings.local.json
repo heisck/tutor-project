@@ -3,7 +3,33 @@
     "allow": [
       "Bash(npx vitest:*)",
       "Bash(npm install:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx fest:*)",
+      "Bash(ls node_modules/.bin/fest*)",
+      "Bash(grep -r '\"\"fest\"\"' package.json)",
+      "Bash(fest link:*)",
+      "Bash(fest --version)",
+      "Bash(echo $SHELL)",
+      "Read(//mnt/**)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npx prisma:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" npx prisma migrate dev --name add_source_unit --schema packages/db/prisma/schema.prisma)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" npx prisma migrate dev --name add_source_unit)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" npx prisma db push)",
+      "Bash(npx turbo:*)",
+      "Bash(grep:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor\" npx prisma generate)",
+      "Bash(node:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" npx prisma db push --schema packages/db/prisma/schema.prisma 2>&1)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" npx --yes prisma db push --schema packages/db/prisma/schema.prisma 2>&1)",
+      "Bash(npx --version)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" node packages/db/node_modules/prisma/build/index.js db push --schema packages/db/prisma/schema.prisma 2>&1)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d ai_tutor_pwa -c \"SELECT * FROM pg_extension WHERE extname = 'vector';\" 2>&1)",
+      "Bash(where fest:*)"
     ]
   }
 }
