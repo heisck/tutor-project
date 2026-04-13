@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2026-04-13T01:56:56.714384825Z",
+    "from_status": "planning",
+    "to_status": "ready"
+  },
+  {
+    "timestamp": "2026-04-13T02:01:37.64354194Z",
+    "from_status": "ready",
+    "to_status": "active"
+  },
+  {
+    "timestamp": "2026-04-13T02:07:08.590955689Z",
+    "from_status": "active",
+    "to_status": "completed"
+  }
+]
