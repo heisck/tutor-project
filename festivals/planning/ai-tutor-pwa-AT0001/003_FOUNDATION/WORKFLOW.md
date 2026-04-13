@@ -6,84 +6,68 @@ fest_parent: 003_FOUNDATION
 
 # Foundation Phase Workflow
 
-This phase begins actual system implementation.
-
-The agent must follow the implementation plan defined in:
-
-- 002_PLAN/plan/IMPLEMENTATION_PLAN.md
-- FESTIVAL_OVERVIEW.md
+This document guides the agent through the foundation implementation phase. Follow these steps in order.
 
 ---
 
-## Step 1: READ PLAN
+## Step 1: READ_PLAN
 
-**Goal:** Understand what to build.
+**Goal:** Understand exactly what foundation implementation must cover.
 
-Actions:
-- Read IMPLEMENTATION_PLAN.md
-- Read FESTIVAL_OVERVIEW.md
-- Identify Phase 003_FOUNDATION scope only
+**Actions:**
+1. Read FESTIVAL_OVERVIEW.md
+2. Read 002_PLAN/plan/IMPLEMENTATION_PLAN.md
+3. Read 003_FOUNDATION/PHASE_GOAL.md
+4. Read 003_FOUNDATION/01_implementation/SEQUENCE_GOAL.md
 
----
-
-## Step 2: SETUP PROJECT
-
-**Goal:** Prepare development environment.
-
-Actions:
-- Initialize project structure
-- Setup TypeScript
-- Setup Next.js frontend
-- Setup backend services
-- Setup environment config
+**Output:** Clear scope for the foundation phase
 
 ---
 
-## Step 3: IMPLEMENT MODULES
+## Step 2: EXECUTE_SEQUENCE
 
-**Goal:** Build foundation modules.
+**Goal:** Execute the foundation implementation sequence in task order.
 
-Modules to build:
-- Auth
-- Profile
-- Upload
-- Storage
-- Document model
-- Processing job system
-- Processing status API
+**Actions:**
+1. Start with 01_repo_and_app_foundation.md
+2. Continue to auth, profile, upload, and document-processing tasks
+3. Respect task ordering and task constraints
+4. Do not implement later-phase features
 
----
-
-## Step 4: ADD TESTS
-
-**Goal:** Ensure reliability.
-
-Actions:
-- Write unit tests
-- Write integration tests
-- Validate API behavior
-- Enforce test coverage
+**Output:** Foundation modules implemented in order
 
 ---
 
-## Step 5: VALIDATE BUILD
+## Step 3: TEST_AND_VERIFY
 
-**Goal:** Confirm system works.
+**Goal:** Verify that implemented modules are correct and stable.
 
-Actions:
-- Run tests
-- Run lint
-- Run typecheck
-- Verify upload flow works end-to-end
+**Actions:**
+1. Run tests required by each task
+2. Run lint
+3. Run typecheck
+4. Fix failures before moving on
+
+**Output:** Verified foundation implementation
 
 ---
+
+## Step 4: COMPLETE
+
+**Goal:** Finish foundation implementation and prepare for the next phase.
+
+**Actions:**
+1. Confirm phase acceptance criteria are met
+2. Confirm security rules were followed
+3. Confirm all touched modules include tests
+
+**Output:** Foundation phase ready for downstream phases
 
 ## Workflow State Tracking
 
-| Step | Status |
-|------|--------|
-| READ PLAN | [ ] pending |
-| SETUP PROJECT | [ ] pending |
-| IMPLEMENT MODULES | [ ] pending |
-| ADD TESTS | [ ] pending |
-| VALIDATE BUILD | [ ] pending |
+| Step | Status | Notes |
+|------|--------|-------|
+| 1. READ_PLAN | [ ] pending | |
+| 2. EXECUTE_SEQUENCE | [ ] pending | |
+| 3. TEST_AND_VERIFY | [ ] pending | |
+| 4. COMPLETE | [ ] pending | |

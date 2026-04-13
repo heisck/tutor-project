@@ -1,9 +1,9 @@
 ---
 fest_type: task
-fest_id: 003_FOUNDATION-S01-T05
+fest_id: 003_FOUNDATION-S01-T01
 fest_name: repo_and_app_foundation
 fest_parent: 003_FOUNDATION-S01
-fest_order: 5
+fest_order: 1
 fest_status: pending
 fest_tracking: true
 ---
