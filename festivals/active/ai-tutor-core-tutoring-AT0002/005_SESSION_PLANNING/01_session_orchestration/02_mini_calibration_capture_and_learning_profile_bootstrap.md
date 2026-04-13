@@ -20,8 +20,8 @@ Capture the learner's initial calibration inputs and persist the learning-profil
 
 ## Requirements
 
-- [ ] Persist academic level, session goal, and initial explanation preference for the authenticated learner in a typed, reusable profile model.
-- [ ] Attach calibration state to session startup so the generated teaching plan can immediately reflect learner context.
+- [x] Persist academic level, session goal, and initial explanation preference for the authenticated learner in a typed, reusable profile model.
+- [x] Attach calibration state to session startup so the generated teaching plan can immediately reflect learner context.
 
 ## Implementation
 
@@ -32,5 +32,5 @@ Capture the learner's initial calibration inputs and persist the learning-profil
 
 ## Done When
 
-- [ ] All requirements met
-- [ ] Calibration data is persisted and available to downstream teaching-plan generation with tests covering first-time and repeat-session behavior
+- [x] All requirements met
+- [x] Calibration data is persisted and available to downstream teaching-plan generation with tests covering first-time and repeat-session behavior

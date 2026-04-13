@@ -102,3 +102,9 @@
 {"ts":"2026-04-13T21:58:43.584001327Z","event":"wf_step_done","phase":"gate:004_KNOWLEDGE_GRAPH","step":4}
 {"ts":"2026-04-13T22:28:12.153126715Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/01_study_session_schema_and_lifecycle_apis.md"}
 {"ts":"2026-04-13T22:52:50.950797053Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/02_mini_calibration_capture_and_learning_profile_bootstrap.md"}
+{"ts":"2026-04-13T23:13:11.146708889Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/03_lesson_segment_generation_and_teaching_plan_persistence.md"}
+{"ts":"2026-04-13T23:27:01.798922856Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/04_session_handoff_snapshot_and_resume_restoration.md"}
+{"ts":"2026-04-13T23:32:27.506307392Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/05_session_state_read_model_and_ownership_enforcement.md"}
+{"ts":"2026-04-13T23:33:23.286155749Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/06_testing.md"}
+{"ts":"2026-04-13T23:42:10.976845884Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/07_review.md"}
+{"ts":"2026-04-13T23:42:47.630800133Z","event":"completed","task":"005_SESSION_PLANNING/01_session_orchestration/08_iterate.md"}

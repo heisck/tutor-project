@@ -1,18 +1,20 @@
 ---
+fest_type: gate
+fest_id: 08_iterate.md
+fest_name: Review Results and Iterate
+fest_parent: 01_session_orchestration
+fest_order: 8
+fest_status: completed
 fest_autonomy: medium
-fest_created: 2026-04-13T17:37:21.60007791Z
 fest_gate_id: iterate
 fest_gate_type: iterate
-fest_id: 08_iterate.md
 fest_managed: true
-fest_name: Review Results and Iterate
-fest_order: 8
-fest_parent: 01_session_orchestration
-fest_status: pending
+fest_created: 2026-04-13T17:37:21.60007791Z
+fest_updated: 2026-04-13T23:42:47.638154914Z
 fest_tracking: true
-fest_type: gate
 fest_version: "1.0"
 ---
+
 
 # Gate: Review Results and Iterate
 
@@ -22,11 +24,12 @@ Address all findings from testing and code review. Iterate until the sequence me
 
 ### From Testing
 
-- [ ] (list findings from testing gate)
+- [x] Stabilized `@ai-tutor-pwa/web` typechecking by generating Next route types with environment loading and disabling stale incremental metadata during no-emit checks.
+- [x] Removed a false-negative full-suite failure by giving the long-running retrieval integration test an explicit timeout budget.
 
 ### From Code Review
 
-- [ ] (list findings from review gate)
+- [x] Tightened handoff snapshot validation so sectionless lesson segments cannot persist an unrelated `currentSectionId`, including cross-user section references.
 
 ## Iteration
 
@@ -39,10 +42,10 @@ For each finding:
 
 ## Definition of Done
 
-- [ ] All critical findings fixed
-- [ ] All tests pass after changes
-- [ ] Linting passes
-- [ ] Typechecking passes
-- [ ] Code review findings addressed
-- [ ] Regression checks and any required end-to-end verifications were re-run
-- [ ] Ready to commit
+- [x] All critical findings fixed
+- [x] All tests pass after changes
+- [x] Linting passes
+- [x] Typechecking passes
+- [x] Code review findings addressed
+- [x] Regression checks and any required end-to-end verifications were re-run
+- [x] Ready to commit

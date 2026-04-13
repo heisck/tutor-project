@@ -20,8 +20,8 @@ Create the persisted study-session models and lifecycle endpoints needed to star
 
 ## Requirements
 
-- [ ] Define the database schema, enums, and API contracts for study-session lifecycle state without breaking prior festival foundations.
-- [ ] Implement protected session start, pause, and resume flows with typed validation and explicit lifecycle transition rules.
+- [x] Define the database schema, enums, and API contracts for study-session lifecycle state without breaking prior festival foundations.
+- [x] Implement protected session start, pause, and resume flows with typed validation and explicit lifecycle transition rules.
 
 ## Implementation
 
@@ -32,5 +32,5 @@ Create the persisted study-session models and lifecycle endpoints needed to star
 
 ## Done When
 
-- [ ] All requirements met
-- [ ] Session creation, pause, and resume work through tested protected endpoints and reject invalid lifecycle transitions
+- [x] All requirements met
+- [x] Session creation, pause, and resume work through tested protected endpoints and reject invalid lifecycle transitions
