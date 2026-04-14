@@ -75,15 +75,23 @@ All values match what the clients already use. Centralizing them makes policy ch
 #### 2. Typed result union
 
 ```ts
+interface AiCallUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 interface AiCallSuccess<T> {
   ok: true;
+  attempt: 1 | 2;
   data: T;
-  usage: { inputTokens: number; outputTokens: number };
+  finishReason: string | null;
   latencyMs: number;
+  usage: AiCallUsage | null; // null for embeddings
 }
 
 interface AiCallFailure {
   ok: false;
+  attempt: 1 | 2;
   reason:
     | 'timeout'
     | 'transient_failure'
@@ -100,6 +108,12 @@ type AiCallResult<T> = AiCallSuccess<T> | AiCallFailure;
 
 Each failure reason is semantically distinct so downstream code (and task 02) can react appropriately.
 
+Design decisions on result shape:
+- `usage` is nullable — embeddings have no output tokens, but the embedding client still returns `inputTokens` via `total_tokens` from the OpenAI response for task 02 cost tracking
+- `finishReason` captures truncation vs clean stop vs refusal from the provider (null for embeddings)
+- `attempt` tracks whether success came on first try or retry, visible in both success and failure results
+- Zod validation of AI responses stays in the individual clients (concept-analyzer, atu-mapper) where domain schemas already exist — the wrapper stays provider-agnostic
+
 #### 3. The wrapper: `executeAiCall<T>()`
 
 ```ts
@@ -112,12 +126,17 @@ async function executeAiCall<T>(
 Flow:
 
 1. Look up config for `callType`
-2. Create `AbortController` with `setTimeout` at `config.timeoutMs`
-3. Call `callFn(signal)` — the caller adapts the SDK call to pass the signal and extract data + usage
-4. On transient failure (network error, 502/503/504), retry once with fresh AbortController
-5. On success, defensive check: if `usage.outputTokens > config.maxTokens`, return `{ ok: false, reason: 'budget_exceeded' }`
-6. Log: `[AI_RUNTIME] ${config.label} | ${latencyMs}ms | ${usage.inputTokens}+${usage.outputTokens} tokens | ${outcome}`
-7. Return typed result
+2. Start timer (`performance.now()`)
+3. Execute loop (max 2 attempts):
+   a. Create `AbortController` — use `AbortSignal.timeout()` where available, otherwise `setTimeout` + explicit cleanup in `finally` to prevent leaked listeners
+   b. Call `callFn(signal)` — caller adapts SDK call to pass signal, extract data + usage + finishReason
+   c. On success:
+      - If `config.maxTokens > 0` and `usage.outputTokens > config.maxTokens`, return `{ ok: false, reason: 'budget_exceeded' }`
+      - Return `{ ok: true, data, usage, finishReason, attempt }`
+   d. On transient failure (network error, 502/503/504) and `attempt < 2`: retry
+   e. On any other error: classify, return failure immediately
+4. Log: `[AI_RUNTIME] ${config.label} | attempt=${attempt} | ${latencyMs}ms | ${tokenSummary} | ${outcome}`
+5. Return typed result
 
 #### 4. Error classification
 
@@ -181,13 +200,17 @@ Same pattern for atu-mapper, vision-client, and embedding-client.
 ### Logging format
 
 ```
-[AI_RUNTIME] concept-analysis | 2340ms | 1200+3800 tokens | ok
-[AI_RUNTIME] atu-extraction | 60000ms | 0+0 tokens | timeout
-[AI_RUNTIME] embedding | 450ms | 0+0 tokens | ok
-[AI_RUNTIME] vision-description | 29500ms | 200+45 tokens | transient_failure (retried, ok)
+[AI_RUNTIME] concept-analysis | attempt=1 | 2340ms | 1200+3800 tokens | stop | ok
+[AI_RUNTIME] atu-extraction | attempt=1 | 60000ms | timeout
+[AI_RUNTIME] embedding | attempt=1 | 450ms | 820 input tokens | ok
+[AI_RUNTIME] vision-description | attempt=2 | 29500ms | 200+45 tokens | stop | ok (retried)
 ```
 
-Includes `model` in structured log data for task 02 cost tracking. The `[AI_RUNTIME]` prefix makes grep/pipe trivial.
+- Attempt number on every line
+- Embeddings show input tokens only (no output tokens, no finish reason)
+- Finish reason included for generation calls (`stop`, `max_tokens`, `end_turn`)
+- `model` included in structured log data for task 02 cost tracking
+- `[AI_RUNTIME]` prefix makes grep/pipe trivial
 
 ### What does NOT change
 
@@ -209,14 +232,17 @@ Tests for the new `ai-runtime.ts` module:
 6. **Provider error passthrough** — mock 400/401/403, verify `provider_error` with no retry
 7. **Success path** — mock clean response, verify `ok: true` with correct data and usage
 8. **Logging output** — verify log format includes label, latency, tokens, outcome
-9. **Embedding skip** — verify budget check is skipped when `maxTokens` is 0
+9. **Embedding skip** — verify budget check is skipped when `maxTokens` is 0, usage returns `inputTokens` only
+10. **Attempt tracking** — verify retry success returns `attempt: 2`, first-try success returns `attempt: 1`
+11. **Finish reason passthrough** — verify `finishReason` from provider response appears in success result
+12. **AbortSignal cleanup** — verify no leaked listeners after call completes (success and failure paths)
 
 Tests for each refactored client:
 
-10. **concept-analyzer** — verify it uses `executeAiCall` and preserves existing fallback (empty graph on failure)
-11. **atu-mapper** — verify fallback to empty array on failure
-12. **embedding-client** — verify timeout enforcement through wrapper
-13. **vision-client** — verify fallback to null on failure
+13. **concept-analyzer** — verify it uses `executeAiCall` and preserves existing fallback (empty graph on failure)
+14. **atu-mapper** — verify fallback to empty array on failure
+15. **embedding-client** — verify timeout enforcement through wrapper, inputTokens captured
+16. **vision-client** — verify fallback to null on failure
 
 ## Dependencies
 
