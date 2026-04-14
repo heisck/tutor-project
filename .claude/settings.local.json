@@ -29,7 +29,8 @@
       "Bash(npx --version)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public\" node packages/db/node_modules/prisma/build/index.js db push --schema packages/db/prisma/schema.prisma 2>&1)",
       "Bash(PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d ai_tutor_pwa -c \"SELECT * FROM pg_extension WHERE extname = 'vector';\" 2>&1)",
-      "Bash(where fest:*)"
+      "Bash(where fest:*)",
+      "Bash(python3 _analyze.py)"
     ]
   }
 }
