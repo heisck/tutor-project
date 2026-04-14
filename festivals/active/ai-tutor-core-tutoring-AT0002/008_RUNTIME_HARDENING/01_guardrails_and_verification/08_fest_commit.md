@@ -1,18 +1,20 @@
 ---
+fest_type: gate
+fest_id: 08_fest_commit.md
+fest_name: Fest Commit Changes
+fest_parent: 01_guardrails_and_verification
+fest_order: 8
+fest_status: completed
 fest_autonomy: high
-fest_created: 2026-04-13T17:37:22.46116832Z
 fest_gate_id: fest-commit
 fest_gate_type: commit
-fest_id: 08_fest_commit.md
 fest_managed: true
-fest_name: Fest Commit Changes
-fest_order: 8
-fest_parent: 01_guardrails_and_verification
-fest_status: pending
+fest_created: 2026-04-13T17:37:22.46116832Z
+fest_updated: 2026-04-14T11:49:18.051294242Z
 fest_tracking: true
-fest_type: gate
 fest_version: "1.0"
 ---
+
 
 # Gate: Commit Sequence Changes
 

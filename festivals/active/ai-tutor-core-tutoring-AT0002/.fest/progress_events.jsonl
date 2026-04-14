@@ -171,3 +171,12 @@
 {"ts":"2026-04-14T11:45:27.472384674Z","event":"completed","task":"008_RUNTIME_HARDENING/01_guardrails_and_verification/05_testing.md"}
 {"ts":"2026-04-14T11:47:10.583253958Z","event":"completed","task":"008_RUNTIME_HARDENING/01_guardrails_and_verification/06_review.md"}
 {"ts":"2026-04-14T11:47:32.868905451Z","event":"completed","task":"008_RUNTIME_HARDENING/01_guardrails_and_verification/07_iterate.md"}
+{"ts":"2026-04-14T11:49:18.044362421Z","event":"completed","task":"008_RUNTIME_HARDENING/01_guardrails_and_verification/08_fest_commit.md"}
+{"ts":"2026-04-14T11:49:24.373285391Z","event":"wf_init","phase":"gate:008_RUNTIME_HARDENING","total_steps":4}
+{"ts":"2026-04-14T11:49:24.373286791Z","event":"wf_step_start","phase":"gate:008_RUNTIME_HARDENING","step":1}
+{"ts":"2026-04-14T11:49:53.368320484Z","event":"wf_step_done","phase":"gate:008_RUNTIME_HARDENING","step":1}
+{"ts":"2026-04-14T11:49:53.368321484Z","event":"wf_advance","phase":"gate:008_RUNTIME_HARDENING","step":2}
+{"ts":"2026-04-14T11:49:53.368322184Z","event":"wf_step_start","phase":"gate:008_RUNTIME_HARDENING","step":2}
+{"ts":"2026-04-14T11:51:24.535930658Z","event":"wf_step_done","phase":"gate:008_RUNTIME_HARDENING","step":2}
+{"ts":"2026-04-14T11:51:24.535932558Z","event":"wf_advance","phase":"gate:008_RUNTIME_HARDENING","step":3}
+{"ts":"2026-04-14T11:51:24.535933559Z","event":"wf_step_start","phase":"gate:008_RUNTIME_HARDENING","step":3}

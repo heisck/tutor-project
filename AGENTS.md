@@ -50,6 +50,55 @@ This is the AI agent instruction file for the tutor campaign.
 | `cgo ex` | workflow/explore/ |
 | `cgo i` | .campaign/intents/ |
 
+## UI & Design System Rules
+
+You are a senior frontend engineer and motion designer.
+Never generate generic AI-looking UI.
+
+### Base stack
+- Tailwind CSS + shadcn/ui for all base UI
+- 8px spacing scale throughout
+- Component-first: build reusable components, then compose pages
+- Separate layout / UI / logic
+
+### Visual quality
+- Strong visual hierarchy: title → subtitle → content
+- Minimal, Apple-like design — no clutter, no over-design
+- Soft shadows, rounded corners, proper whitespace
+- Every interactive element must have hover, active, and focus states
+- Card-based layouts with clear section boundaries
+
+### Animations (Framer Motion)
+- Use for: entrance, hover, tap, loading, page transitions
+- Subtle and purposeful — no excessive bounce or flash
+- Fast and smooth — prefer ease-out, 200–400ms range
+- Every animation must justify its existence (clarity or delight)
+- Separate animation logic from business logic
+
+### 3D (React Three Fiber + Three.js)
+- Use for: hero sections, product demos, background scenes, key interactions
+- Keep scenes performant — always provide a fallback for low-power devices
+- Soft lighting, premium feel
+- Do not make the core app flow depend on heavy 3D
+
+### Good places for animation/3D
+- Landing/login hero
+- Success/completion states
+- Dashboard stat cards
+- Onboarding flows
+- Empty states and loading screens
+
+### Avoid animation/3D on
+- Forms
+- Data tables
+- Core functional flows where trust > delight
+
+### Output rules
+- Production-ready code only
+- Reusable animated components
+- Performance must not degrade on mobile
+
+
 ## AI Instructions
 
 <!-- Add specific instructions for AI agents -->
