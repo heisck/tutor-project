@@ -7,5 +7,7 @@ export * from './learning-profile.js';
 export * from './profile.js';
 export * from './session-handoff.js';
 export * from './sessions.js';
+export * from './tutor.js';
+export * from './tutor-runtime.js';
 export * from './tutoring-content.js';
 export * from './upload.js';

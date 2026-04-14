@@ -8,7 +8,7 @@ fest_managed: true
 fest_name: Fest Commit Changes
 fest_order: 10
 fest_parent: 01_adaptive_tutor
-fest_status: pending
+fest_status: completed
 fest_tracking: true
 fest_type: gate
 fest_version: "1.0"

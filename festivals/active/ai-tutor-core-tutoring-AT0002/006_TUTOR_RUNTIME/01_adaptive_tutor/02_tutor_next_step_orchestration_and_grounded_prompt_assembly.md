@@ -4,7 +4,7 @@ fest_id: 02_tutor_next_step_orchestration_and_grounded_prompt_assembly.md
 fest_name: tutor next step orchestration and grounded prompt assembly
 fest_parent: 01_adaptive_tutor
 fest_order: 2
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:36.074258173Z
 fest_tracking: true
@@ -18,8 +18,8 @@ Implement the tutor next-step orchestration path that selects the next teaching 
 
 ## Requirements
 
-- [ ] Build the runtime service or endpoint that uses session plan, calibration, mastery state, and top-k retrieval to decide the next tutor step.
-- [ ] Assemble tutor prompts from scoped retrieved evidence with trusted wrappers or equivalent safeguards so document content is treated as data rather than instructions.
+- [x] Build the runtime service or endpoint that uses session plan, calibration, mastery state, and top-k retrieval to decide the next tutor step.
+- [x] Assemble tutor prompts from scoped retrieved evidence with trusted wrappers or equivalent safeguards so document content is treated as data rather than instructions.
 
 ## Implementation
 
@@ -30,5 +30,5 @@ Implement the tutor next-step orchestration path that selects the next teaching 
 
 ## Done When
 
-- [ ] All requirements met
-- [ ] The tutor next-step path produces grounded, session-aware decisions under test and never reads evidence outside the authenticated document scope
+- [x] All requirements met
+- [x] The tutor next-step path produces grounded, session-aware decisions under test and never reads evidence outside the authenticated document scope

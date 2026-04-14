@@ -4,7 +4,7 @@ fest_id: 04_mastery_state_transitions_question_rotation_and_no_fake_mastery_enfo
 fest_name: mastery state transitions question rotation and no fake mastery enforcement
 fest_parent: 01_adaptive_tutor
 fest_order: 4
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:36.14976787Z
 fest_tracking: true
@@ -18,8 +18,8 @@ Enforce mastery-state transitions only after sufficient varied evidence so sessi
 
 ## Requirements
 
-- [ ] Update mastery state only after required checks succeed, including varied question forms or transfer-style evidence where the plan requires it.
-- [ ] Prevent repeated question patterns or optimistic AI responses from marking concepts as mastered prematurely.
+- [x] Update mastery state only after required checks succeed, including varied question forms or transfer-style evidence where the plan requires it.
+- [x] Prevent repeated question patterns or optimistic AI responses from marking concepts as mastered prematurely.
 
 ## Implementation
 
@@ -30,5 +30,5 @@ Enforce mastery-state transitions only after sufficient varied evidence so sessi
 
 ## Done When
 
-- [ ] All requirements met
-- [ ] Mastery transitions are persisted with auditable evidence and tests prove that fake or repeated shallow success cannot complete a concept
+- [x] All requirements met
+- [x] Mastery transitions are persisted with auditable evidence and tests prove that fake or repeated shallow success cannot complete a concept

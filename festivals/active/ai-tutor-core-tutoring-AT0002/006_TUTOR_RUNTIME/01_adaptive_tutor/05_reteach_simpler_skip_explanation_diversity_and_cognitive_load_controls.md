@@ -4,7 +4,7 @@ fest_id: 05_reteach_simpler_skip_explanation_diversity_and_cognitive_load_contro
 fest_name: reteach simpler skip explanation diversity and cognitive load controls
 fest_parent: 01_adaptive_tutor
 fest_order: 5
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:36.184912193Z
 fest_tracking: true
@@ -18,8 +18,8 @@ Implement alternate tutoring actions for reteach, simplification, and skip while
 
 ## Requirements
 
-- [ ] Support explicit reteach, simpler, and skip flows that change tutoring strategy intentionally instead of repeating the same failed explanation.
-- [ ] Preserve explanation-diversity memory and pacing controls so the tutor does not overwhelm the learner or loop on near-identical responses.
+- [x] Support explicit reteach, simpler, and skip flows that change tutoring strategy intentionally instead of repeating the same failed explanation.
+- [x] Preserve explanation-diversity memory and pacing controls so the tutor does not overwhelm the learner or loop on near-identical responses.
 
 ## Implementation
 
@@ -30,5 +30,5 @@ Implement alternate tutoring actions for reteach, simplification, and skip while
 
 ## Done When
 
-- [ ] All requirements met
-- [ ] Alternate explanation flows are exercised by tests and demonstrably change strategy without breaking session or coverage state
+- [x] All requirements met
+- [x] Alternate explanation flows are exercised by tests and demonstrably change strategy without breaking session or coverage state

@@ -23,6 +23,7 @@ import {
 } from './lib/redis.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerStudySessionRoutes } from './sessions/routes.js';
+import { registerTutorRoutes } from './tutor/routes.js';
 
 export interface BuildAppOptions {
   documentProcessingQueue?: DocumentProcessingQueue;
@@ -104,6 +105,11 @@ export async function buildApp(
   });
 
   await registerStudySessionRoutes(app, {
+    env,
+    prisma: prismaClient,
+  });
+
+  await registerTutorRoutes(app, {
     env,
     prisma: prismaClient,
   });

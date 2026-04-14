@@ -4,7 +4,7 @@ fest_id: 01_adaptive_tutor
 fest_name: adaptive tutor
 fest_parent: 006_TUTOR_RUNTIME
 fest_order: 1
-fest_status: pending
+fest_status: completed
 fest_created: 2026-04-13T17:14:28.363765208Z
 fest_tracking: true
 fest_working_dir: .
