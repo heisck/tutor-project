@@ -1,5 +1,4 @@
 import type {
-  CheckQuestionType,
   ConceptMasteryRecord,
   GroundedChunk,
   LessonSegmentRecord,
@@ -9,6 +8,10 @@ import type {
 } from '@ai-tutor-pwa/shared';
 
 import type { RetrievedChunk } from '../knowledge/retrieval.js';
+import {
+  mapMasteryQuestionTypeToCheckType,
+  selectNextTutorCheckType,
+} from './check-types.js';
 
 export class TutorOrchestrationError extends Error {
   public constructor(message: string) {
@@ -92,7 +95,7 @@ function decideTutorAction(
 
   // Concept was taught but not yet checked
   if (mastery.status === 'taught') {
-    const nextCheckType = selectNextCheckType(mastery, segment);
+    const nextCheckType = selectNextTutorCheckType(mastery, segment);
     return {
       action: 'check',
       conceptId,
@@ -115,7 +118,7 @@ function decideTutorAction(
 
   // Concept is partially understood — check again with different question type
   if (mastery.status === 'partial') {
-    const nextCheckType = selectNextCheckType(mastery, segment);
+    const nextCheckType = selectNextTutorCheckType(mastery, segment);
     return {
       action: 'check',
       conceptId,
@@ -132,7 +135,7 @@ function decideTutorAction(
     const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
     const hasDistinctTypes = !gate.requiresDistinctQuestionTypes ||
       gate.requiredQuestionTypes.every((type) => {
-        const mapped = mapMasteryQuestionToCheckType(type);
+        const mapped = mapMasteryQuestionTypeToCheckType(type);
         return mapped !== null && usedTypes.has(mapped);
       });
 
@@ -159,7 +162,7 @@ function decideTutorAction(
     }
 
     // Need more evidence
-    const nextCheckType = selectNextCheckType(mastery, segment);
+    const nextCheckType = selectNextTutorCheckType(mastery, segment);
     return {
       action: 'check',
       conceptId,
@@ -199,55 +202,6 @@ function decideTutorAction(
     reasoning: 'Unrecognized mastery state, defaulting to teach',
     segmentId,
   };
-}
-
-function selectNextCheckType(
-  mastery: ConceptMasteryRecord,
-  segment: LessonSegmentRecord,
-): CheckQuestionType {
-  const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
-  const requiredTypes = segment.masteryGate.requiredQuestionTypes;
-
-  // Prefer a required type that hasn't been used yet
-  for (const requiredType of requiredTypes) {
-    const mapped = mapMasteryQuestionToCheckType(requiredType);
-    if (mapped !== null && !usedTypes.has(mapped)) {
-      return mapped;
-    }
-  }
-
-  // Fall back to any unused check type from the full rotation
-  const allTypes = [
-    'recall', 'paraphrase', 'compare_and_contrast', 'apply_to_new_case',
-    'transfer_to_new_domain', 'error_spotting', 'sequence_the_steps',
-    'cause_effect_reasoning', 'prerequisite_link', 'compression',
-    'reverse_reasoning', 'boundary_case',
-  ] as const;
-
-  for (const type of allTypes) {
-    if (!usedTypes.has(type)) {
-      return type;
-    }
-  }
-
-  return 'paraphrase';
-}
-
-function mapMasteryQuestionToCheckType(
-  masteryType: string,
-): CheckQuestionType | null {
-  switch (masteryType) {
-    case 'explanation':
-      return 'paraphrase';
-    case 'application':
-      return 'apply_to_new_case';
-    case 'transfer':
-      return 'transfer_to_new_domain';
-    case 'error_spotting':
-      return 'error_spotting';
-    default:
-      return null;
-  }
 }
 
 function resolveCurrentSegment(

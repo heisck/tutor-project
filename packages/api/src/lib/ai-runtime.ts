@@ -34,7 +34,6 @@ export const AI_CALL_CONFIGS = {
 
 export type AiCallType = keyof typeof AI_CALL_CONFIGS;
 
-
 export interface AiCallUsage {
   inputTokens: number;
   outputTokens: number;
@@ -170,12 +169,69 @@ export function formatUsage(usage: AiCallUsage | null): string {
   return `in=${usage.inputTokens} out=${usage.outputTokens}`;
 }
 
+function createAbortError(message: string): Error {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException(message, 'AbortError');
+  }
+
+  const error = new Error(message);
+  error.name = 'AbortError';
+  return error;
+}
+
+function normalizeAbortReason(reason: unknown): Error {
+  if (reason instanceof Error) {
+    return reason;
+  }
+
+  return createAbortError('The operation was aborted.');
+}
+
+function createTimedAbortSignal(timeoutMs: number): {
+  abortPromise: Promise<never>;
+  cleanup: () => void;
+  signal: AbortSignal;
+} {
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = setTimeout(
+    () =>
+      controller.abort(
+        createAbortError(`AI call timed out after ${timeoutMs}ms.`),
+      ),
+    timeoutMs,
+  );
+  let abortHandler: (() => void) | null = null;
+
+  const abortPromise = new Promise<never>((_, reject) => {
+    abortHandler = () => {
+      reject(normalizeAbortReason(controller.signal.reason));
+    };
+    controller.signal.addEventListener('abort', abortHandler, { once: true });
+  });
+
+  return {
+    abortPromise,
+    cleanup: () => {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+
+      if (abortHandler !== null) {
+        controller.signal.removeEventListener('abort', abortHandler);
+        abortHandler = null;
+      }
+    },
+    signal: controller.signal,
+  };
+}
+
 function logAiCall<T>(
   config: AiCallConfig,
   result: AiCallResult<T>,
   attempt: number,
 ): void {
-  const prefix = `[AI_RUNTIME] ${config.label} | attempt=${attempt} | ${result.latencyMs}ms`;
+  const prefix = `[AI_RUNTIME] ${config.label} | model=${config.model} | attempt=${attempt} | ${result.latencyMs}ms`;
 
   if (result.ok) {
     const usageStr = formatUsage(result.usage);
@@ -201,15 +257,11 @@ export async function executeAiCall<T>(
 
   for (let attemptIdx = 0; attemptIdx < MAX_ATTEMPTS; attemptIdx++) {
     const attempt = (attemptIdx + 1) as 1 | 2;
-    const controller = new AbortController();
-    const timeoutHandle = setTimeout(
-      () => controller.abort(),
-      config.timeoutMs,
-    );
+    const { abortPromise, cleanup, signal } =
+      createTimedAbortSignal(config.timeoutMs);
 
     try {
-      const fnResult = await callFn(controller.signal);
-      clearTimeout(timeoutHandle);
+      const fnResult = await Promise.race([callFn(signal), abortPromise]);
 
       const latencyMs = Math.round(performance.now() - start);
 
@@ -242,8 +294,6 @@ export async function executeAiCall<T>(
       logAiCall(config, success, attempt);
       return success;
     } catch (error: unknown) {
-      clearTimeout(timeoutHandle);
-
       const latencyMs = Math.round(performance.now() - start);
       const isAbort = isAbortError(error);
       const isTransient = !isAbort && isTransientError(error);
@@ -271,6 +321,8 @@ export async function executeAiCall<T>(
       };
       logAiCall(config, failure, attempt);
       return failure;
+    } finally {
+      cleanup();
     }
   }
 

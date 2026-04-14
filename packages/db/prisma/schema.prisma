@@ -173,6 +173,7 @@ model User {
   userFeedback     UserFeedback[]
   sessions         AuthSession[]
   studySessions    StudySession[]
+  aiRuntimeUsages  AiRuntimeUsage[]
   learningProfile  LearningProfile?
 
   @@index([institutionId])
@@ -259,6 +260,7 @@ model Document {
   studySessions         StudySession[]
   userFeedback          UserFeedback[]
   feedbackAlerts        FeedbackAlert[]
+  aiRuntimeUsages       AiRuntimeUsage[]
 
   @@index([courseId])
   @@index([processingStatus])
@@ -492,11 +494,33 @@ model StudySession {
   lessonSegments       LessonSegment[]
   handoffSnapshot      SessionHandoffSnapshot?
   userFeedback         UserFeedback[]
+  aiRuntimeUsages      AiRuntimeUsage[]
 
   @@index([documentId])
   @@index([learningProfileId])
   @@index([status])
   @@index([userId])
+}
+
+model AiRuntimeUsage {
+  id               String       @id @default(cuid())
+  userId           String
+  studySessionId   String
+  documentId       String
+  route            String
+  outcome          String
+  providerCallCount Int        @default(0)
+  inputTokenCount  Int         @default(0)
+  outputTokenCount Int         @default(0)
+  metadata         Json?
+  createdAt        DateTime    @default(now())
+  document         Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  studySession     StudySession @relation(fields: [studySessionId], references: [id], onDelete: Cascade)
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, createdAt])
+  @@index([studySessionId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model LessonSegment {

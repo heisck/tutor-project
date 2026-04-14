@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 
+import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
+
 export interface EmbeddingClient {
   generateEmbeddings(texts: readonly string[]): Promise<number[][]>;
 }
@@ -7,20 +9,16 @@ export interface EmbeddingClient {
 export interface EmbeddingClientOptions {
   apiKey: string;
   model?: string;
-  timeoutMs?: number;
 }
 
-const DEFAULT_MODEL = 'text-embedding-3-small';
-const DEFAULT_TIMEOUT_MS = 30_000;
 const BATCH_SIZE = 20;
 
 export function createEmbeddingClient(options: EmbeddingClientOptions): EmbeddingClient {
   const client = new OpenAI({
     apiKey: options.apiKey,
-    timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   });
 
-  const model = options.model ?? DEFAULT_MODEL;
+  const model = options.model ?? AI_CALL_CONFIGS.embedding.model;
 
   return {
     async generateEmbeddings(texts: readonly string[]): Promise<number[][]> {
@@ -32,16 +30,34 @@ export function createEmbeddingClient(options: EmbeddingClientOptions): Embeddin
 
       for (let i = 0; i < texts.length; i += BATCH_SIZE) {
         const batch = texts.slice(i, i + BATCH_SIZE);
-        const response = await client.embeddings.create({
-          input: batch as string[],
-          model,
+        const result = await executeAiCall('embedding', async (signal) => {
+          const response = await client.embeddings.create(
+            {
+              input: [...batch],
+              model,
+            },
+            { signal },
+          );
+
+          return {
+            data: response.data
+              .sort((a, b) => a.index - b.index)
+              .map((item) => item.embedding),
+            finishReason: null,
+            usage: {
+              inputTokens: response.usage.total_tokens,
+              outputTokens: 0,
+            },
+          };
         });
 
-        const sorted = response.data
-          .sort((a, b) => a.index - b.index)
-          .map((item) => item.embedding);
+        if (!result.ok) {
+          throw new Error(
+            `Embedding request failed (${result.reason}): ${result.message}`,
+          );
+        }
 
-        allEmbeddings.push(...sorted);
+        allEmbeddings.push(...result.data);
       }
 
       return allEmbeddings;

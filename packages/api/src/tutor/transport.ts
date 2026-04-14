@@ -21,6 +21,12 @@ export class TutorStreamTransportError extends Error {
   }
 }
 
+export interface OwnedTutorEventStreamBuildResult {
+  documentId: string;
+  events: readonly TutorStreamEvent[];
+  sessionId: string;
+}
+
 export async function buildOwnedTutorStreamEvents(
   prisma: Pick<
     DatabaseClient,
@@ -31,7 +37,7 @@ export async function buildOwnedTutorStreamEvents(
     sessionId: string;
     userId: string;
   },
-): Promise<readonly TutorStreamEvent[] | null> {
+): Promise<OwnedTutorEventStreamBuildResult | null> {
   const now = input.now ?? new Date();
   const sessionState = await getOwnedStudySessionState(prisma, {
     sessionId: input.sessionId,
@@ -60,55 +66,63 @@ export async function buildOwnedTutorStreamEvents(
   const messagePayload: TutorStreamMessagePayload = {
     content: buildInitialTutorMessage(currentSegment),
     format: 'markdown',
-    messageId: randomUUID(),
+    messageId: buildTutorMessageId(
+      sessionState.session.id,
+      currentSegment.id,
+      sessionState.session.currentStep,
+    ),
     role: 'tutor',
     segmentId: currentSegment.id,
   };
 
-  return [
-    {
-      data: {
-        action: 'stream_open',
-        connectionId,
-        protocolVersion: 'v1',
-        retryAfterMs: 3000,
-        sessionId: sessionState.session.id,
+  return {
+    documentId: sessionState.session.documentId,
+    events: [
+      {
+        data: {
+          action: 'stream_open',
+          connectionId,
+          protocolVersion: 'v1',
+          retryAfterMs: 3000,
+          sessionId: sessionState.session.id,
+        },
+        sentAt: now.toISOString(),
+        sequence: 1,
+        type: 'control',
       },
-      sentAt: now.toISOString(),
-      sequence: 1,
-      type: 'control',
-    },
-    {
-      data: {
-        currentSegmentId: currentSegment.id,
-        currentStep: sessionState.session.currentStep,
-        segmentOrdinal: currentSegment.ordinal,
-        sessionId: sessionState.session.id,
-        stage: 'segment_ready',
-        totalSegments: sessionState.teachingPlan.segments.length,
+      {
+        data: {
+          currentSegmentId: currentSegment.id,
+          currentStep: sessionState.session.currentStep,
+          segmentOrdinal: currentSegment.ordinal,
+          sessionId: sessionState.session.id,
+          stage: 'segment_ready',
+          totalSegments: sessionState.teachingPlan.segments.length,
+        },
+        sentAt: new Date(now.getTime() + 1).toISOString(),
+        sequence: 2,
+        type: 'progress',
       },
-      sentAt: new Date(now.getTime() + 1).toISOString(),
-      sequence: 2,
-      type: 'progress',
-    },
-    {
-      data: messagePayload,
-      sentAt: new Date(now.getTime() + 2).toISOString(),
-      sequence: 3,
-      type: 'message',
-    },
-    {
-      data: {
-        currentSegmentId: currentSegment.id,
-        deliveredEventCount: 4,
-        reason: 'await_learner_response',
-        sessionId: sessionState.session.id,
+      {
+        data: messagePayload,
+        sentAt: new Date(now.getTime() + 2).toISOString(),
+        sequence: 3,
+        type: 'message',
       },
-      sentAt: new Date(now.getTime() + 3).toISOString(),
-      sequence: 4,
-      type: 'completion',
-    },
-  ];
+      {
+        data: {
+          currentSegmentId: currentSegment.id,
+          deliveredEventCount: 4,
+          reason: 'await_learner_response',
+          sessionId: sessionState.session.id,
+        },
+        sentAt: new Date(now.getTime() + 3).toISOString(),
+        sequence: 4,
+        type: 'completion',
+      },
+    ],
+    sessionId: sessionState.session.id,
+  };
 }
 
 export function createTutorEventStream(
@@ -149,6 +163,14 @@ function buildInitialTutorMessage(
     currentSegment.analogyPrompt,
     `When you're ready, check yourself with: ${currentSegment.checkPrompt}`,
   ].join('\n\n');
+}
+
+function buildTutorMessageId(
+  sessionId: string,
+  segmentId: string,
+  currentStep: number,
+): string {
+  return `tutor-message:${sessionId}:${segmentId}:${currentStep}`;
 }
 
 function resolveCurrentSegment(

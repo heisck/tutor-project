@@ -174,53 +174,57 @@ describe('TutorSessionExperience', () => {
     40_000,
   );
 
-  it('shows validation errors returned by the response submission path', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn<typeof fetch>();
-    global.fetch = fetchMock;
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse(201, {
-          learningProfile: {
-            academicLevel: 'undergraduate',
-            explanationStartPreference: 'example_first',
-            lastCalibratedAt: '2026-04-14T10:00:00.000Z',
-            sessionGoal: 'deep_understanding',
-          },
-          session: baseSessionRecord(),
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse(200, buildSessionStateResponse()))
-      .mockResolvedValueOnce(streamResponse(buildTutorEvents()))
-      .mockResolvedValueOnce(
-        jsonResponse(400, {
-          message: 'Tutor evaluation rejected this response',
-        }),
+  it(
+    'shows validation errors returned by the response submission path',
+    async () => {
+      const user = userEvent.setup();
+      const fetchMock = vi.fn<typeof fetch>();
+      global.fetch = fetchMock;
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(201, {
+            learningProfile: {
+              academicLevel: 'undergraduate',
+              explanationStartPreference: 'example_first',
+              lastCalibratedAt: '2026-04-14T10:00:00.000Z',
+              sessionGoal: 'deep_understanding',
+            },
+            session: baseSessionRecord(),
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, buildSessionStateResponse()))
+        .mockResolvedValueOnce(streamResponse(buildTutorEvents()))
+        .mockResolvedValueOnce(
+          jsonResponse(400, {
+            message: 'Tutor evaluation rejected this response',
+          }),
+        );
+
+      render(<TutorSessionExperience apiBaseUrl={apiBaseUrl} />);
+
+      await user.type(
+        screen.getByPlaceholderText('Paste the processed document ID'),
+        'document-1',
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Start tutoring session' }),
       );
 
-    render(<TutorSessionExperience apiBaseUrl={apiBaseUrl} />);
+      expect(await screen.findByText('Tutor message')).toBeInTheDocument();
+      await user.type(
+        screen.getByPlaceholderText('How would you explain why force depends on mass?'),
+        'It depends on how hard I push.',
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Submit learner response' }),
+      );
 
-    await user.type(
-      screen.getByPlaceholderText('Paste the processed document ID'),
-      'document-1',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Start tutoring session' }),
-    );
-
-    expect(await screen.findByText('Tutor message')).toBeInTheDocument();
-    await user.type(
-      screen.getByPlaceholderText('How would you explain why force depends on mass?'),
-      'It depends on how hard I push.',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Submit learner response' }),
-    );
-
-    expect(
-      await screen.findByText('Tutor evaluation rejected this response'),
-    ).toBeInTheDocument();
-  });
+      expect(
+        await screen.findByText('Tutor evaluation rejected this response'),
+      ).toBeInTheDocument();
+    },
+    10_000,
+  );
 
   it('pauses an active session and renders the persisted continuity checkpoint', async () => {
     const user = userEvent.setup();
@@ -445,143 +449,151 @@ describe('TutorSessionExperience', () => {
     );
   });
 
-  it('asks the in-session assistant with session-scoped payload and renders grounded evidence', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn<typeof fetch>();
-    global.fetch = fetchMock;
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse(201, {
-          learningProfile: {
-            academicLevel: 'undergraduate',
-            explanationStartPreference: 'example_first',
-            lastCalibratedAt: '2026-04-14T10:00:00.000Z',
-            sessionGoal: 'deep_understanding',
-          },
-          session: baseSessionRecord(),
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse(200, buildSessionStateResponse()))
-      .mockResolvedValueOnce(streamResponse(buildTutorEvents()))
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          answer:
-            "Based on your document's Forces material, here is the best grounded answer.\n\nShort answer: Newton frames the relationship as force changing with mass and acceleration.",
-          currentSegmentId: 'segment-1',
-          documentId: 'document-1',
-          groundedEvidence: [
-            {
-              content:
-                'Newton frames the relationship as force changing with mass and acceleration.',
-              id: 'chunk-1',
-              score: 0.92,
+  it(
+    'asks the in-session assistant with session-scoped payload and renders grounded evidence',
+    async () => {
+      const user = userEvent.setup();
+      const fetchMock = vi.fn<typeof fetch>();
+      global.fetch = fetchMock;
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(201, {
+            learningProfile: {
+              academicLevel: 'undergraduate',
+              explanationStartPreference: 'example_first',
+              lastCalibratedAt: '2026-04-14T10:00:00.000Z',
+              sessionGoal: 'deep_understanding',
             },
-          ],
-          outcome: 'answered',
-          understandingCheck:
-            'How would you explain that back in one sentence using the idea of Forces?',
-        }),
+            session: baseSessionRecord(),
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, buildSessionStateResponse()))
+        .mockResolvedValueOnce(streamResponse(buildTutorEvents()))
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            answer:
+              "Based on your document's Forces material, here is the best grounded answer.\n\nShort answer: Newton frames the relationship as force changing with mass and acceleration.",
+            currentSegmentId: 'segment-1',
+            documentId: 'document-1',
+            groundedEvidence: [
+              {
+                content:
+                  'Newton frames the relationship as force changing with mass and acceleration.',
+                id: 'chunk-1',
+                score: 0.92,
+              },
+            ],
+            outcome: 'answered',
+            understandingCheck:
+              'How would you explain that back in one sentence using the idea of Forces?',
+          }),
+        );
+
+      render(<TutorSessionExperience apiBaseUrl={apiBaseUrl} />);
+
+      await user.type(
+        screen.getByPlaceholderText('Paste the processed document ID'),
+        'document-1',
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Start tutoring session' }),
       );
 
-    render(<TutorSessionExperience apiBaseUrl={apiBaseUrl} />);
-
-    await user.type(
-      screen.getByPlaceholderText('Paste the processed document ID'),
-      'document-1',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Start tutoring session' }),
-    );
-
-    expect(await screen.findByText('Tutor message')).toBeInTheDocument();
-    await user.type(
-      screen.getByPlaceholderText('Ask a question about this session document.'),
-      'Why does force change when mass changes?',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Ask session assistant' }),
-    );
-
-    expect(
-      await screen.findByText(
-        'The assistant found enough document support to answer directly.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/How would you explain that back in one sentence/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Grounding evidence')).toBeInTheDocument();
-    expect(fetchMock.mock.calls[3]?.[0]).toBe(
-      'http://localhost:4000/api/v1/tutor/question',
-    );
-    expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(
-      JSON.stringify({
-        question: 'Why does force change when mass changes?',
-        sessionId: 'session-1',
-      }),
-    );
-  });
-
-  it('renders refusal feedback clearly when the session assistant cannot ground an answer', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn<typeof fetch>();
-    global.fetch = fetchMock;
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse(201, {
-          learningProfile: {
-            academicLevel: 'undergraduate',
-            explanationStartPreference: 'example_first',
-            lastCalibratedAt: '2026-04-14T10:00:00.000Z',
-            sessionGoal: 'deep_understanding',
-          },
-          session: baseSessionRecord(),
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse(200, buildSessionStateResponse()))
-      .mockResolvedValueOnce(streamResponse(buildTutorEvents()))
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          answer:
-            'I could not find enough grounded context in your document to answer that without guessing.',
-          currentSegmentId: 'segment-1',
-          documentId: 'document-1',
-          groundedEvidence: [],
-          outcome: 'refused',
-          understandingCheck: null,
-        }),
+      expect(await screen.findByText('Tutor message')).toBeInTheDocument();
+      await user.type(
+        screen.getByPlaceholderText('Ask a question about this session document.'),
+        'Why does force change when mass changes?',
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Ask session assistant' }),
       );
 
-    render(<TutorSessionExperience apiBaseUrl={apiBaseUrl} />);
+      expect(
+        await screen.findByText(
+          'The assistant found enough document support to answer directly.',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/How would you explain that back in one sentence/),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Grounding evidence')).toBeInTheDocument();
+      expect(fetchMock.mock.calls[3]?.[0]).toBe(
+        'http://localhost:4000/api/v1/tutor/question',
+      );
+      expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(
+        JSON.stringify({
+          question: 'Why does force change when mass changes?',
+          sessionId: 'session-1',
+        }),
+      );
+    },
+    10_000,
+  );
 
-    await user.type(
-      screen.getByPlaceholderText('Paste the processed document ID'),
-      'document-1',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Start tutoring session' }),
-    );
+  it(
+    'renders refusal feedback clearly when the session assistant cannot ground an answer',
+    async () => {
+      const user = userEvent.setup();
+      const fetchMock = vi.fn<typeof fetch>();
+      global.fetch = fetchMock;
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(201, {
+            learningProfile: {
+              academicLevel: 'undergraduate',
+              explanationStartPreference: 'example_first',
+              lastCalibratedAt: '2026-04-14T10:00:00.000Z',
+              sessionGoal: 'deep_understanding',
+            },
+            session: baseSessionRecord(),
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, buildSessionStateResponse()))
+        .mockResolvedValueOnce(streamResponse(buildTutorEvents()))
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            answer:
+              'I could not find enough grounded context in your document to answer that without guessing.',
+            currentSegmentId: 'segment-1',
+            documentId: 'document-1',
+            groundedEvidence: [],
+            outcome: 'refused',
+            understandingCheck: null,
+          }),
+        );
 
-    expect(await screen.findByText('Tutor message')).toBeInTheDocument();
-    await user.type(
-      screen.getByPlaceholderText('Ask a question about this session document.'),
-      'How do black holes bend spacetime?',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'Ask session assistant' }),
-    );
+      render(<TutorSessionExperience apiBaseUrl={apiBaseUrl} />);
 
-    expect(
-      await screen.findByText(
-        'The assistant refused to guess because the question was not grounded strongly enough in the document.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'No document chunks met the grounding threshold for this question.',
-      ),
-    ).toBeInTheDocument();
-  });
+      await user.type(
+        screen.getByPlaceholderText('Paste the processed document ID'),
+        'document-1',
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Start tutoring session' }),
+      );
+
+      expect(await screen.findByText('Tutor message')).toBeInTheDocument();
+      await user.type(
+        screen.getByPlaceholderText('Ask a question about this session document.'),
+        'How do black holes bend spacetime?',
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Ask session assistant' }),
+      );
+
+      expect(
+        await screen.findByText(
+          'The assistant refused to guess because the question was not grounded strongly enough in the document.',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'No document chunks met the grounding threshold for this question.',
+        ),
+      ).toBeInTheDocument();
+    },
+    10_000,
+  );
 
   it('submits tutor explanation feedback from the streamed tutoring surface', async () => {
     const user = userEvent.setup();

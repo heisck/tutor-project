@@ -1,10 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
 import { isVisionSupportedMimeType, type ExtractedDocumentAsset } from './asset-extraction.js';
-
-const VISION_MODEL = 'claude-haiku-4-5-20251001';
-const VISION_TIMEOUT_MS = 30_000;
-const MAX_DESCRIPTION_TOKENS = 300;
 
 const VISION_SYSTEM_PROMPT = [
   'You are an educational content analyst.',
@@ -39,34 +36,53 @@ async function describeAsset(
   const mediaType = asset.mimeType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
 
   try {
-    const response = await client.messages.create({
-      max_tokens: MAX_DESCRIPTION_TOKENS,
-      messages: [
-        {
-          content: [
-            {
-              source: {
-                data: asset.buffer.toString('base64'),
-                media_type: mediaType,
-                type: 'base64',
+    const result = await executeAiCall(
+      'visionDescription',
+      async (signal) => {
+        const response = await client.messages.create(
+          {
+            max_tokens: AI_CALL_CONFIGS.visionDescription.maxTokens,
+            messages: [
+              {
+                content: [
+                  {
+                    source: {
+                      data: asset.buffer.toString('base64'),
+                      media_type: mediaType,
+                      type: 'base64',
+                    },
+                    type: 'image',
+                  },
+                  {
+                    text: 'Describe this educational visual for a student.',
+                    type: 'text',
+                  },
+                ],
+                role: 'user',
               },
-              type: 'image',
-            },
-            {
-              text: 'Describe this educational visual for a student.',
-              type: 'text',
-            },
-          ],
-          role: 'user',
-        },
-      ],
-      model: VISION_MODEL,
-      system: VISION_SYSTEM_PROMPT,
-    }, {
-      timeout: VISION_TIMEOUT_MS,
-    });
+            ],
+            model: AI_CALL_CONFIGS.visionDescription.model,
+            system: VISION_SYSTEM_PROMPT,
+          },
+          { signal },
+        );
 
-    const textBlock = response.content.find((block) => block.type === 'text');
+        return {
+          data: response,
+          finishReason: response.stop_reason ?? null,
+          usage: {
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+          },
+        };
+      },
+    );
+
+    if (!result.ok) {
+      return null;
+    }
+
+    const textBlock = result.data.content.find((block) => block.type === 'text');
     return textBlock?.text?.trim() || null;
   } catch {
     return null;

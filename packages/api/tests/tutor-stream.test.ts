@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter, once } from 'node:events';
 
 import { createPrismaClient } from '@ai-tutor-pwa/db';
 import {
@@ -15,6 +16,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { buildApp } from '../src/app.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
+import {
+  buildOwnedTutorStreamEvents,
+  createTutorEventStream,
+} from '../src/tutor/transport.js';
 import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
@@ -167,6 +172,92 @@ describe('tutor stream route', () => {
     expect(parseJson<{ message: string }>(response.body)).toEqual({
       message: 'Study session not found',
     });
+  });
+
+  it('keeps event order stable across reconnects while issuing fresh connection ids', async () => {
+    const owner = await signUpAndAuthenticate('reconnect-owner');
+    const document = await createOwnedSessionDocument(owner.userId, 'reconnect.pdf');
+    const startedSession = await startStudySession(owner.cookie, document.id);
+    const connectionIds = new Set<string>();
+    let stableMessageId: string | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const response = await app.inject({
+        headers: {
+          cookie: owner.cookie,
+          origin: 'http://localhost:3000',
+        },
+        method: 'POST',
+        payload: {
+          sessionId: startedSession.session.id,
+        },
+        url: TUTOR_PATHS.next,
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const events = parseTutorStreamEvents(response.body);
+      expect(events.map((event) => event.type)).toEqual([
+        'control',
+        'progress',
+        'message',
+        'completion',
+      ]);
+      expect(events.map((event) => event.sequence)).toEqual([1, 2, 3, 4]);
+
+      const controlEvent = events[0];
+      const messageEvent = events[2];
+
+      expect(controlEvent?.type).toBe('control');
+      expect(messageEvent?.type).toBe('message');
+
+      if (controlEvent?.type === 'control') {
+        connectionIds.add(controlEvent.data.connectionId);
+      }
+
+      if (messageEvent?.type === 'message') {
+        if (stableMessageId === null) {
+          stableMessageId = messageEvent.data.messageId;
+        } else {
+          expect(messageEvent.data.messageId).toBe(stableMessageId);
+        }
+      }
+    }
+
+    expect(connectionIds.size).toBe(5);
+    expect(stableMessageId).not.toBeNull();
+  });
+
+  it('stops streaming additional frames after the client closes the connection', async () => {
+    const owner = await signUpAndAuthenticate('client-close');
+    const document = await createOwnedSessionDocument(owner.userId, 'client-close.pdf');
+    const startedSession = await startStudySession(owner.cookie, document.id);
+    const builtStream = await buildOwnedTutorStreamEvents(prismaClient, {
+      sessionId: startedSession.session.id,
+      userId: owner.userId,
+    });
+
+    expect(builtStream).not.toBeNull();
+
+    const rawRequest = new EventEmitter();
+    const stream = createTutorEventStream(
+      {
+        raw: rawRequest,
+      } as Parameters<typeof createTutorEventStream>[0],
+      builtStream!.events,
+    );
+    const chunks: string[] = [];
+
+    stream.on('data', (chunk) => {
+      chunks.push(String(chunk));
+      rawRequest.emit('close');
+    });
+
+    await once(stream, 'end');
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toContain('tutor.control');
+    expect(chunks[0]).not.toContain('tutor.completion');
   });
 });
 

@@ -29,10 +29,16 @@ import {
   TutorAssistantQuestionError,
 } from './assistant.js';
 import {
+  collectAssistantOutputText,
+  collectTutorStreamOutputText,
+  recordTutorRuntimeUsage,
+} from './runtime-usage.js';
+import {
   enforceMasteryTransition,
   loadMasteryRecordsFromState,
   persistCoverageStatusUpdate,
 } from './mastery.js';
+import { selectNextTutorCheckType } from './check-types.js';
 import { getOwnedStudySessionState } from '../sessions/state.js';
 import { saveOwnedStudySessionHandoffSnapshot } from '../sessions/handoff.js';
 
@@ -52,9 +58,19 @@ export async function registerTutorRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const tutorRateLimit = createUserRateLimitPreHandler(dependencies.redis, {
+    keyPrefix:
+      dependencies.rateLimitKeyPrefix === undefined
+        ? 'rate-limit:tutor-runtime'
+        : `${dependencies.rateLimitKeyPrefix}:tutor-runtime`,
+    limit: 60,
+    timeWindowSeconds: 60,
+  });
   const assistantRateLimit = createUserRateLimitPreHandler(dependencies.redis, {
     keyPrefix:
-      dependencies.rateLimitKeyPrefix ?? 'rate-limit:tutor-assistant-question',
+      dependencies.rateLimitKeyPrefix === undefined
+        ? 'rate-limit:tutor-assistant-question'
+        : `${dependencies.rateLimitKeyPrefix}:tutor-assistant-question`,
     limit: 30,
     timeWindowSeconds: 60,
   });
@@ -62,7 +78,7 @@ export async function registerTutorRoutes(
   app.post(
     TUTOR_PATHS.next,
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, tutorRateLimit],
     },
     async (request, reply): Promise<void> => {
       const parsedBody = startTutorStreamRequestSchema.safeParse(request.body);
@@ -74,23 +90,39 @@ export async function registerTutorRoutes(
       }
 
       try {
-        const events = await buildOwnedTutorStreamEvents(dependencies.prisma, {
-          sessionId: parsedBody.data.sessionId,
-          userId: request.auth!.userId,
-        });
+        const streamResult = await buildOwnedTutorStreamEvents(
+          dependencies.prisma,
+          {
+            sessionId: parsedBody.data.sessionId,
+            userId: request.auth!.userId,
+          },
+        );
 
-        if (events === null) {
+        if (streamResult === null) {
           return reply.status(404).send({
             message: 'Study session not found',
           });
         }
+
+        await recordTutorRuntimeUsage(dependencies.prisma, {
+          documentId: streamResult.documentId,
+          inputText: [],
+          metadata: {
+            deliveredEventCount: streamResult.events.length,
+          },
+          outcome: 'streamed',
+          outputText: collectTutorStreamOutputText(streamResult.events),
+          route: 'tutor_next',
+          sessionId: parsedBody.data.sessionId,
+          userId: request.auth!.userId,
+        });
 
         reply.header('Cache-Control', 'no-cache, no-transform');
         reply.header('Connection', 'keep-alive');
         reply.header('Content-Type', 'text/event-stream; charset=utf-8');
         reply.header('X-Accel-Buffering', 'no');
 
-        return reply.send(createTutorEventStream(request, events));
+        return reply.send(createTutorEventStream(request, streamResult.events));
       } catch (error) {
         if (
           error instanceof TutorStreamTransportError ||
@@ -109,7 +141,7 @@ export async function registerTutorRoutes(
   app.post(
     TUTOR_PATHS.evaluate,
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, tutorRateLimit],
     },
     async (request, reply): Promise<void> => {
       const parsedBody = learnerResponseSchema.safeParse(request.body);
@@ -186,7 +218,9 @@ export async function registerTutorRoutes(
         segment.conceptId,
         mapExplanationStrategyToSessionType(segment.explanationStrategy),
       );
+      const checkType = selectNextTutorCheckType(seededMastery, segment);
       const masteryResult = enforceMasteryTransition(seededMastery, {
+        checkType,
         conceptId: segment.conceptId,
         evaluation,
         segment,
@@ -232,6 +266,23 @@ export async function registerTutorRoutes(
         userId,
       });
 
+      await recordTutorRuntimeUsage(dependencies.prisma, {
+        documentId: sessionState.session.documentId,
+        inputText: [content],
+        metadata: {
+          checkType,
+          confusionScore: evaluation.confusionScore,
+          errorClassification: evaluation.errorClassification,
+          isCorrect: evaluation.isCorrect,
+          segmentId,
+        },
+        outcome: masteryResult.masteryRecord.status,
+        outputText: [evaluation.reasoning],
+        route: 'tutor_evaluate',
+        sessionId,
+        userId,
+      });
+
       return reply.status(200).send({
         evaluation,
         mastery: {
@@ -272,6 +323,20 @@ export async function registerTutorRoutes(
             message: 'Study session not found',
           });
         }
+
+        await recordTutorRuntimeUsage(dependencies.prisma, {
+          documentId: response.documentId,
+          inputText: [parsedBody.data.question],
+          metadata: {
+            currentSegmentId: response.currentSegmentId,
+            groundedEvidenceCount: response.groundedEvidence.length,
+          },
+          outcome: response.outcome,
+          outputText: collectAssistantOutputText(response),
+          route: 'assistant_question',
+          sessionId: parsedBody.data.sessionId,
+          userId: request.auth!.userId,
+        });
 
         return reply.status(200).send(response);
       } catch (error) {

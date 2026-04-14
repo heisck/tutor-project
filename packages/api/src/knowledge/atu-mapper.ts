@@ -7,6 +7,8 @@ import {
 } from '@ai-tutor-pwa/db';
 import { z } from 'zod';
 
+import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
+
 export interface AtuMapperClient {
   extractAtus(input: AtuExtractionInput): Promise<RawAtu[]>;
 }
@@ -40,23 +42,41 @@ const atuExtractionResponseSchema = z.object({
 });
 
 export function createAtuMapperClient(apiKey: string): AtuMapperClient {
-  const client = new Anthropic({ apiKey, timeout: 60_000 });
+  const client = new Anthropic({ apiKey });
 
   return {
     async extractAtus(input: AtuExtractionInput): Promise<RawAtu[]> {
-      const response = await client.messages.create({
-        max_tokens: 2048,
-        messages: [
+      const result = await executeAiCall('atuExtraction', async (signal) => {
+        const response = await client.messages.create(
           {
-            content: buildExtractionPrompt(input),
-            role: 'user',
+            max_tokens: AI_CALL_CONFIGS.atuExtraction.maxTokens,
+            messages: [
+              {
+                content: buildExtractionPrompt(input),
+                role: 'user',
+              },
+            ],
+            model: AI_CALL_CONFIGS.atuExtraction.model,
+            system: ATU_SYSTEM_PROMPT,
           },
-        ],
-        model: 'claude-haiku-4-5-20251001',
-        system: ATU_SYSTEM_PROMPT,
+          { signal },
+        );
+
+        return {
+          data: response,
+          finishReason: response.stop_reason ?? null,
+          usage: {
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+          },
+        };
       });
 
-      const textBlock = response.content.find((b) => b.type === 'text');
+      if (!result.ok) {
+        return [];
+      }
+
+      const textBlock = result.data.content.find((b) => b.type === 'text');
       if (textBlock === undefined || textBlock.type !== 'text') {
         return [];
       }

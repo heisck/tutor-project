@@ -1,18 +1,20 @@
 ---
+fest_type: gate
+fest_id: 06_review.md
+fest_name: Code Review
+fest_parent: 01_guardrails_and_verification
+fest_order: 6
+fest_status: completed
 fest_autonomy: low
-fest_created: 2026-04-13T17:37:22.357744057Z
 fest_gate_id: review
 fest_gate_type: review
-fest_id: 06_review.md
 fest_managed: true
-fest_name: Code Review
-fest_order: 6
-fest_parent: 01_guardrails_and_verification
-fest_status: pending
+fest_created: 2026-04-13T17:37:22.357744057Z
+fest_updated: 2026-04-14T11:47:10.590144068Z
 fest_tracking: true
-fest_type: gate
 fest_version: "1.0"
 ---
+
 
 # Gate: Code Review
 

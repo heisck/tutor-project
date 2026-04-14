@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { type DatabaseClient } from '@ai-tutor-pwa/db';
 import { z } from 'zod';
 
+import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
+
 export interface ConceptAnalyzerClient {
   analyzeConceptGraph(input: ConceptAnalysisInput): Promise<RawConceptGraph>;
 }
@@ -56,23 +58,44 @@ const rawConceptGraphSchema = z.object({
 });
 
 export function createConceptAnalyzerClient(apiKey: string): ConceptAnalyzerClient {
-  const client = new Anthropic({ apiKey, timeout: 90_000 });
+  const client = new Anthropic({ apiKey });
 
   return {
     async analyzeConceptGraph(input: ConceptAnalysisInput): Promise<RawConceptGraph> {
-      const response = await client.messages.create({
-        max_tokens: 4096,
-        messages: [
-          {
-            content: buildConceptAnalysisPrompt(input),
-            role: 'user',
-          },
-        ],
-        model: 'claude-haiku-4-5-20251001',
-        system: CONCEPT_ANALYSIS_SYSTEM_PROMPT,
-      });
+      const result = await executeAiCall(
+        'conceptAnalysis',
+        async (signal) => {
+          const response = await client.messages.create(
+            {
+              max_tokens: AI_CALL_CONFIGS.conceptAnalysis.maxTokens,
+              messages: [
+                {
+                  content: buildConceptAnalysisPrompt(input),
+                  role: 'user',
+                },
+              ],
+              model: AI_CALL_CONFIGS.conceptAnalysis.model,
+              system: CONCEPT_ANALYSIS_SYSTEM_PROMPT,
+            },
+            { signal },
+          );
 
-      const textBlock = response.content.find((b) => b.type === 'text');
+          return {
+            data: response,
+            finishReason: response.stop_reason ?? null,
+            usage: {
+              inputTokens: response.usage.input_tokens,
+              outputTokens: response.usage.output_tokens,
+            },
+          };
+        },
+      );
+
+      if (!result.ok) {
+        return { concepts: [], prerequisites: [] };
+      }
+
+      const textBlock = result.data.content.find((b) => b.type === 'text');
       if (textBlock === undefined || textBlock.type !== 'text') {
         return { concepts: [], prerequisites: [] };
       }

@@ -5,6 +5,7 @@ import type {
 } from '@ai-tutor-pwa/shared';
 
 import { getOwnedStudySessionState } from '../sessions/state.js';
+import { isPromptInjectionLikeDocumentText } from './document-safety.js';
 
 const ANSWERED_MATCH_THRESHOLD = 2;
 const ANSWERED_SCORE_THRESHOLD = 0.55;
@@ -176,6 +177,10 @@ async function loadRankedGroundedEvidence(
 
   return chunks
     .map((chunk) => {
+      if (isPromptInjectionLikeDocumentText(chunk.content)) {
+        return null;
+      }
+
       const chunkTerms = new Set(tokenize(chunk.content));
       const matchCount = countMatches(questionTerms, chunkTerms);
       const supportScore =
@@ -192,7 +197,10 @@ async function loadRankedGroundedEvidence(
         supportScore,
       } satisfies RankedGroundedChunk;
     })
-    .filter((chunk) => chunk.matchCount > 0)
+    .filter(
+      (chunk): chunk is RankedGroundedChunk =>
+        chunk !== null && chunk.matchCount > 0,
+    )
     .sort((left, right) => {
       if (right.score !== left.score) {
         return right.score - left.score;
@@ -250,7 +258,7 @@ function buildWeakGroundingAnswer(
       : `the ${conceptTitle} part of your current document`;
 
   return [
-    'I found only partial support in your document, so treat this as a cautious answer.',
+    'I found only partial support in your document, so I will stay narrow and avoid guessing.',
     '',
     `Closest grounding I found in ${scopeHint}:`,
     ...groundedEvidence.map((chunk) => `- ${chunk.content}`),

@@ -4,11 +4,13 @@ fest_id: 03_prompt_injection_defense_and_weak_grounding_refusal_paths.md
 fest_name: prompt injection defense and weak grounding refusal paths
 fest_parent: 01_guardrails_and_verification
 fest_order: 3
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:38.971516993Z
+fest_updated: 2026-04-14T11:25:14.210662272Z
 fest_tracking: true
 ---
+
 
 # Task: prompt injection defense and weak grounding refusal paths
 

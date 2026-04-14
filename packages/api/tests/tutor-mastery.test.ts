@@ -183,6 +183,7 @@ describe('enforceMasteryTransition', () => {
     };
 
     const result = enforceMasteryTransition(mastery, {
+      checkType: 'paraphrase',
       conceptId: 'c-1',
       evaluation,
       segment: createSegment(),
@@ -204,6 +205,7 @@ describe('enforceMasteryTransition', () => {
     };
 
     const result = enforceMasteryTransition(null, {
+      checkType: 'paraphrase',
       conceptId: 'c-1',
       evaluation,
       segment: createSegment(),

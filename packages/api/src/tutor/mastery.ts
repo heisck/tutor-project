@@ -9,6 +9,7 @@ import type {
 } from '@ai-tutor-pwa/shared';
 
 import { applyEvaluationToMastery, createInitialMastery } from './evaluation.js';
+import { mapMasteryQuestionTypeToCheckType } from './check-types.js';
 
 export class MasteryEnforcementError extends Error {
   public constructor(message: string) {
@@ -18,6 +19,7 @@ export class MasteryEnforcementError extends Error {
 }
 
 export interface MasteryUpdateInput {
+  checkType: CheckQuestionType;
   conceptId: string;
   evaluation: ResponseEvaluation;
   segment: LessonSegmentRecord;
@@ -38,13 +40,18 @@ export function loadMasteryRecordsFromState(
   masterySnapshot: readonly { conceptId: string; confusionScore: number; evidenceCount: number; status: SessionMasteryStatus }[],
 ): Map<string, ConceptMasteryRecord> {
   const records = new Map<string, ConceptMasteryRecord>();
+  const segmentsByConceptId = new Map(
+    segments.map((segment) => [segment.conceptId, segment]),
+  );
 
   // Initialize from snapshot if available
   for (const item of masterySnapshot) {
+    const segment = segmentsByConceptId.get(item.conceptId);
+
     records.set(item.conceptId, {
       conceptId: item.conceptId,
       confusionScore: item.confusionScore,
-      evidenceHistory: [],
+      evidenceHistory: buildEvidenceHistoryFromSnapshot(item, segment),
       explanationTypes: [],
       status: item.status,
     });
@@ -60,6 +67,42 @@ export function loadMasteryRecordsFromState(
   return records;
 }
 
+function buildEvidenceHistoryFromSnapshot(
+  item: {
+    conceptId: string;
+    confusionScore: number;
+    evidenceCount: number;
+    status: SessionMasteryStatus;
+  },
+  segment: LessonSegmentRecord | undefined,
+): ConceptMasteryRecord['evidenceHistory'] {
+  if (item.evidenceCount <= 0) {
+    return [];
+  }
+
+  const inferredCheckTypes =
+    segment?.masteryGate.requiredQuestionTypes
+      .map((type) => mapMasteryQuestionTypeToCheckType(type))
+      .filter((type): type is CheckQuestionType => type !== null) ?? [];
+  const isCorrect = item.status === 'checked' || item.status === 'mastered';
+
+  return Array.from({ length: item.evidenceCount }, (_, index) => {
+    const checkType =
+      inferredCheckTypes[index] ??
+      inferredCheckTypes[inferredCheckTypes.length - 1] ??
+      'paraphrase';
+
+    return {
+      checkType,
+      conceptId: item.conceptId,
+      confusionScore: item.confusionScore,
+      evaluatedAt: new Date(index * 1_000).toISOString(),
+      isCorrect,
+      questionType: checkType,
+    };
+  });
+}
+
 /**
  * Apply an evaluation result to mastery state with full gate enforcement.
  * Returns the updated mastery record and any coverage status change needed.
@@ -71,7 +114,7 @@ export function enforceMasteryTransition(
   const previousStatus = currentMastery?.status ?? 'not_taught';
   const { updatedMastery } = applyEvaluationToMastery(
     {
-      checkType: null,
+      checkType: input.checkType,
       conceptId: input.conceptId,
       learnerResponse: '',
       mastery: currentMastery,
@@ -158,7 +201,7 @@ export function validateMasteryGate(
     const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
     const missingTypes = gate.requiredQuestionTypes.filter(
       (type) => {
-        const mapped = mapMasteryQuestionToCheckType(type);
+        const mapped = mapMasteryQuestionTypeToCheckType(type);
         return mapped !== null && !usedTypes.has(mapped);
       },
     );
@@ -193,7 +236,7 @@ export function validateMasteryGate(
 
   const missingQuestionTypes = gate.requiresDistinctQuestionTypes
     ? gate.requiredQuestionTypes.filter((type) => {
-        const mapped = mapMasteryQuestionToCheckType(type);
+        const mapped = mapMasteryQuestionTypeToCheckType(type);
         const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
         return mapped !== null && !usedTypes.has(mapped);
       })
@@ -204,21 +247,6 @@ export function validateMasteryGate(
     passed: reasons.length === 0,
     reason: reasons.length > 0 ? reasons.join('; ') : 'All gate conditions met',
   };
-}
-
-function mapMasteryQuestionToCheckType(masteryType: string): CheckQuestionType | null {
-  switch (masteryType) {
-    case 'explanation':
-      return 'paraphrase';
-    case 'application':
-      return 'apply_to_new_case';
-    case 'transfer':
-      return 'transfer_to_new_domain';
-    case 'error_spotting':
-      return 'error_spotting';
-    default:
-      return null;
-  }
 }
 
 function mapMasteryToCoverageStatus(
