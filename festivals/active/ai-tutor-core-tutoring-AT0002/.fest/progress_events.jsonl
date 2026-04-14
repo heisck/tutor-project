@@ -180,3 +180,7 @@
 {"ts":"2026-04-14T11:51:24.535930658Z","event":"wf_step_done","phase":"gate:008_RUNTIME_HARDENING","step":2}
 {"ts":"2026-04-14T11:51:24.535932558Z","event":"wf_advance","phase":"gate:008_RUNTIME_HARDENING","step":3}
 {"ts":"2026-04-14T11:51:24.535933559Z","event":"wf_step_start","phase":"gate:008_RUNTIME_HARDENING","step":3}
+{"ts":"2026-04-14T13:45:23.33240526Z","event":"wf_step_done","phase":"gate:008_RUNTIME_HARDENING","step":3}
+{"ts":"2026-04-14T13:45:23.33240616Z","event":"wf_advance","phase":"gate:008_RUNTIME_HARDENING","step":4}
+{"ts":"2026-04-14T13:45:23.33240696Z","event":"wf_step_start","phase":"gate:008_RUNTIME_HARDENING","step":4}
+{"ts":"2026-04-14T13:59:48.030307965Z","event":"wf_step_done","phase":"gate:008_RUNTIME_HARDENING","step":4}
