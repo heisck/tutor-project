@@ -119,7 +119,11 @@ Design decisions on result shape:
 ```ts
 async function executeAiCall<T>(
   callType: AiCallType,
-  callFn: (signal: AbortSignal) => Promise<{ data: T; usage: { inputTokens: number; outputTokens: number } }>,
+  callFn: (signal: AbortSignal) => Promise<{
+    data: T;
+    finishReason: string | null;
+    usage: AiCallUsage | null;
+  }>,
 ): Promise<AiCallResult<T>>
 ```
 
@@ -133,7 +137,7 @@ Flow:
    c. On success:
       - If `config.maxTokens > 0` and `usage.outputTokens > config.maxTokens`, return `{ ok: false, reason: 'budget_exceeded' }`
       - Return `{ ok: true, data, usage, finishReason, attempt }`
-   d. On transient failure (network error, 502/503/504) and `attempt < 2`: retry
+   d. On transient failure (network error, 502/503/504) and `attempt < 2`: wait jittered 100-300ms, then retry
    e. On any other error: classify, return failure immediately
 4. Log: `[AI_RUNTIME] ${config.label} | attempt=${attempt} | ${latencyMs}ms | ${tokenSummary} | ${outcome}`
 5. Return typed result
@@ -188,6 +192,7 @@ const result = await executeAiCall('conceptAnalysis', async (signal) => {
   );
   return {
     data: response,
+    finishReason: response.stop_reason ?? null,
     usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
   };
 });
