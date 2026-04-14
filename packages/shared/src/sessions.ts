@@ -1,9 +1,15 @@
-import type { TeachingPlanRecord } from './lesson-plan.js';
+import type {
+  LessonSegmentCoverageSummary,
+  TeachingPlanRecord,
+} from './lesson-plan.js';
 import type {
   LearningProfileSummary,
   MiniCalibrationInput,
 } from './learning-profile.js';
-import type { SessionHandoffSnapshotRecord } from './session-handoff.js';
+import type {
+  SessionHandoffSnapshotRecord,
+  SessionMasterySnapshotItem,
+} from './session-handoff.js';
 
 export const STUDY_SESSION_MODES = [
   'full',
@@ -65,10 +71,36 @@ export interface StudySessionLifecycleResponse {
   session: StudySessionRecord;
 }
 
+export interface StudySessionContinuityState {
+  hasInterruptedState: boolean;
+  interruptedAt: string | null;
+  isResumable: boolean;
+  masterySnapshot: SessionMasterySnapshotItem[];
+  resumeNotes: string | null;
+  resumeSectionId: string | null;
+  resumeSegmentId: string | null;
+  resumeSegmentTitle: string | null;
+  resumeStep: number | null;
+  unresolvedAtuIds: string[];
+}
+
+export interface StudySessionSummary {
+  canComplete: boolean;
+  completionBlockedReason: string;
+  coverageSummary: LessonSegmentCoverageSummary;
+  masteredTopics: string[];
+  readinessEstimate: string;
+  shakyTopics: string[];
+  unresolvedAtuIds: string[];
+  unresolvedTopics: string[];
+}
+
 export interface StudySessionStateResponse {
+  continuity: StudySessionContinuityState;
   handoffSnapshot: SessionHandoffSnapshotRecord | null;
   learningProfile: LearningProfileSummary | null;
   session: StudySessionRecord;
+  summary: StudySessionSummary;
   teachingPlan: TeachingPlanRecord;
 }
 

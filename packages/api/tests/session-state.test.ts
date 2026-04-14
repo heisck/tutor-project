@@ -4,6 +4,7 @@ import { createPrismaClient } from '@ai-tutor-pwa/db';
 import {
   AUTH_PATHS,
   SESSION_PATHS,
+  TUTOR_PATHS,
   type AuthSessionResponse,
   type SessionHandoffSnapshotInput,
   type StudySessionLifecycleResponse,
@@ -77,6 +78,18 @@ describe('session state route', () => {
       expect(startedState.learningProfile).toMatchObject(
         createMiniCalibrationInput(),
       );
+      expect(startedState.continuity).toMatchObject({
+        hasInterruptedState: false,
+        isResumable: false,
+        resumeSegmentTitle: 'Cells',
+      });
+      expect(startedState.summary.coverageSummary).toEqual({
+        assessed: 0,
+        inProgress: 0,
+        notTaught: 2,
+        taught: 0,
+      });
+      expect(startedState.summary.unresolvedAtuIds).toHaveLength(2);
       expect(startedState.teachingPlan.segments).toHaveLength(2);
       expect(startedState.handoffSnapshot).toBeNull();
 
@@ -104,6 +117,14 @@ describe('session state route', () => {
 
       expect(pausedState.session.status).toBe('paused');
       expect(pausedState.handoffSnapshot).toMatchObject(handoff);
+      expect(pausedState.continuity).toMatchObject({
+        hasInterruptedState: true,
+        isResumable: true,
+        resumeNotes: handoff.resumeNotes,
+        resumeSegmentId: resumedSegment.id,
+        resumeSegmentTitle: resumedSegment.conceptTitle,
+        resumeStep: 3,
+      });
 
       const resumeResponse = await app.inject({
         headers: {
@@ -126,6 +147,13 @@ describe('session state route', () => {
       expect(resumedState.session.currentSectionId).toBe(resumedSegment.sectionId);
       expect(resumedState.session.currentStep).toBe(3);
       expect(resumedState.handoffSnapshot).toMatchObject(handoff);
+      expect(resumedState.continuity).toMatchObject({
+        hasInterruptedState: true,
+        isResumable: false,
+        resumeSegmentId: resumedSegment.id,
+        resumeSegmentTitle: resumedSegment.conceptTitle,
+        resumeStep: 3,
+      });
       expect(resumedState.teachingPlan.currentSegmentId).toBe(resumedSegment.id);
       expect(resumedState.teachingPlan.segments).toEqual(
         startedState.teachingPlan.segments,
@@ -155,6 +183,63 @@ describe('session state route', () => {
     expect(parseJson<{ message: string }>(response.body)).toEqual({
       message: 'Study session not found',
     });
+  });
+
+  it('persists mastery-backed summary data after learner evaluation', async () => {
+    const account = await signUpAndAuthenticate('evaluation-owner');
+    const document = await createOwnedSessionDocument(
+      account.userId,
+      'evaluation-owner.pdf',
+    );
+    const startedSession = await startStudySession(account.cookie, document.id);
+    const startedState = await readSessionState(
+      account.cookie,
+      startedSession.session.id,
+    );
+    const currentSegment = startedState.teachingPlan.segments[0]!;
+
+    const evaluationResponse = await app.inject({
+      headers: {
+        cookie: account.cookie,
+        origin: 'http://localhost:3000',
+      },
+      method: 'POST',
+      payload: {
+        content:
+          'Cells organize life because they package the structures needed to grow and reproduce.',
+        segmentId: currentSegment.id,
+        sessionId: startedSession.session.id,
+      },
+      url: TUTOR_PATHS.evaluate,
+    });
+
+    expect(evaluationResponse.statusCode).toBe(200);
+
+    const evaluatedState = await readSessionState(
+      account.cookie,
+      startedSession.session.id,
+    );
+
+    expect(evaluatedState.handoffSnapshot?.masterySnapshot).toEqual([
+      {
+        conceptId: currentSegment.conceptId,
+        confusionScore: 0.1,
+        evidenceCount: 1,
+        status: 'checked',
+      },
+    ]);
+    expect(evaluatedState.continuity.masterySnapshot).toEqual(
+      evaluatedState.handoffSnapshot?.masterySnapshot,
+    );
+    expect(evaluatedState.summary.coverageSummary).toEqual({
+      assessed: 0,
+      inProgress: 1,
+      notTaught: 1,
+      taught: 0,
+    });
+    expect(evaluatedState.summary.unresolvedAtuIds).toEqual(
+      expect.arrayContaining(currentSegment.atuIds),
+    );
   });
 });
 

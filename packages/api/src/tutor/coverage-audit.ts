@@ -1,4 +1,3 @@
-import type { DatabaseClient } from '@ai-tutor-pwa/db';
 import type {
   CompressedLearningState,
   ConceptMasteryRecord,

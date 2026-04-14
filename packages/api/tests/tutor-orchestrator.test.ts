@@ -4,7 +4,6 @@ import type {
   ConceptMasteryRecord,
   LessonSegmentRecord,
   StudySessionStateResponse,
-  TutorAction,
 } from '@ai-tutor-pwa/shared';
 
 import { orchestrateTutorNextStep, TutorOrchestrationError } from '../src/tutor/orchestrator.js';
@@ -42,6 +41,18 @@ function createTestSessionState(
   currentSegmentId: string | null = null,
 ): StudySessionStateResponse {
   return {
+    continuity: {
+      hasInterruptedState: false,
+      interruptedAt: null,
+      isResumable: false,
+      masterySnapshot: [],
+      resumeNotes: null,
+      resumeSectionId: null,
+      resumeSegmentId: currentSegmentId ?? segments[0]?.id ?? null,
+      resumeSegmentTitle: segments[0]?.conceptTitle ?? null,
+      resumeStep: 0,
+      unresolvedAtuIds: segments.flatMap((segment) => segment.atuIds),
+    },
     handoffSnapshot: null,
     learningProfile: {
       academicLevel: 'undergraduate',
@@ -63,6 +74,21 @@ function createTestSessionState(
       startedAt: '2026-04-14T00:00:00.000Z',
       status: 'active',
       updatedAt: '2026-04-14T00:00:00.000Z',
+    },
+    summary: {
+      canComplete: false,
+      completionBlockedReason: 'No mastery evidence recorded yet',
+      coverageSummary: {
+        assessed: 0,
+        inProgress: 0,
+        notTaught: segments.length,
+        taught: 0,
+      },
+      masteredTopics: [],
+      readinessEstimate: 'Early stages — continue studying for stronger foundations',
+      shakyTopics: [],
+      unresolvedAtuIds: segments.flatMap((segment) => segment.atuIds),
+      unresolvedTopics: segments.map((segment) => segment.conceptTitle),
     },
     teachingPlan: {
       currentSegmentId: currentSegmentId ?? segments[0]?.id ?? null,

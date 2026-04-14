@@ -69,7 +69,7 @@ export function enforceMasteryTransition(
   input: MasteryUpdateInput,
 ): MasteryUpdateResult {
   const previousStatus = currentMastery?.status ?? 'not_taught';
-  const { evaluation, updatedMastery } = applyEvaluationToMastery(
+  const { updatedMastery } = applyEvaluationToMastery(
     {
       checkType: null,
       conceptId: input.conceptId,

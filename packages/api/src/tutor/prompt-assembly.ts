@@ -39,7 +39,7 @@ export function assembleTutorUserPrompt(context: TutorPromptContext): string {
     case 'complete_segment':
       return buildCompleteSegmentPrompt(context);
     case 'complete_session':
-      return buildCompleteSessionPrompt(context);
+      return buildCompleteSessionPrompt();
   }
 }
 
@@ -181,7 +181,7 @@ function buildCompleteSegmentPrompt(context: TutorPromptContext): string {
   ].join('\n');
 }
 
-function buildCompleteSessionPrompt(context: TutorPromptContext): string {
+function buildCompleteSessionPrompt(): string {
   return [
     'The student has completed all concepts in this tutoring session.',
     '',

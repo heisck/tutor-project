@@ -64,6 +64,28 @@ export async function pauseOwnedStudySessionWithHandoff(
   });
 }
 
+export async function saveOwnedStudySessionHandoffSnapshot(
+  prisma: SessionHandoffClient,
+  input: {
+    handoff?: SessionHandoffSnapshotInput;
+    sessionId: string;
+    userId: string;
+  },
+): Promise<SessionHandoffSnapshotRecord | null> {
+  return prisma.$transaction(async (transaction) => {
+    const session = await persistOwnedSessionHandoffSnapshot(transaction, input);
+
+    if (session === null) {
+      return null;
+    }
+
+    return getOwnedSessionHandoffSnapshot(transaction, {
+      sessionId: session.id,
+      userId: input.userId,
+    });
+  });
+}
+
 export async function restoreOwnedStudySessionFromHandoff(
   prisma: SessionHandoffClient,
   input: {
@@ -170,9 +192,14 @@ async function persistOwnedSessionHandoffSnapshot(
     return null;
   }
 
+  const existingSnapshot = await getOwnedSessionHandoffSnapshot(prisma, {
+    sessionId: session.id,
+    userId: input.userId,
+  });
   const parsedInput = sessionHandoffSnapshotInputSchema.parse(input.handoff ?? {});
   const snapshot = await buildValidatedSnapshot(prisma, {
     documentId: session.documentId,
+    existingSnapshot,
     fallbackSectionId: session.currentSectionId,
     fallbackSegmentId: session.currentSegmentId,
     fallbackStep: session.currentStep,
@@ -218,6 +245,7 @@ async function buildValidatedSnapshot(
   prisma: SessionHandoffTransactionClient,
   input: {
     documentId: string;
+    existingSnapshot: SessionHandoffSnapshotRecord | null;
     fallbackSectionId: string | null;
     fallbackSegmentId: string | null;
     fallbackStep: number;
@@ -238,7 +266,9 @@ async function buildValidatedSnapshot(
   }
 
   const currentSegmentId =
-    input.snapshot.currentSegmentId ?? input.fallbackSegmentId;
+    input.snapshot.currentSegmentId ??
+    input.existingSnapshot?.currentSegmentId ??
+    input.fallbackSegmentId;
 
   if (currentSegmentId === null) {
     throw new SessionHandoffSnapshotError(
@@ -258,6 +288,7 @@ async function buildValidatedSnapshot(
 
   const currentSectionId =
     input.snapshot.currentSectionId ??
+    input.existingSnapshot?.currentSectionId ??
     matchingSegment.sectionId ??
     input.fallbackSectionId;
 
@@ -301,11 +332,26 @@ async function buildValidatedSnapshot(
   return sessionHandoffSnapshotSchema.parse({
     currentSectionId,
     currentSegmentId,
-    currentStep: input.snapshot.currentStep ?? input.fallbackStep,
-    explanationHistory: input.snapshot.explanationHistory ?? [],
-    masterySnapshot: input.snapshot.masterySnapshot ?? [],
-    resumeNotes: input.snapshot.resumeNotes ?? null,
-    unresolvedAtuIds: input.snapshot.unresolvedAtuIds ?? [],
+    currentStep:
+      input.snapshot.currentStep ??
+      input.existingSnapshot?.currentStep ??
+      input.fallbackStep,
+    explanationHistory:
+      input.snapshot.explanationHistory ??
+      input.existingSnapshot?.explanationHistory ??
+      [],
+    masterySnapshot:
+      input.snapshot.masterySnapshot ??
+      input.existingSnapshot?.masterySnapshot ??
+      [],
+    resumeNotes:
+      input.snapshot.resumeNotes ??
+      input.existingSnapshot?.resumeNotes ??
+      null,
+    unresolvedAtuIds:
+      input.snapshot.unresolvedAtuIds ??
+      input.existingSnapshot?.unresolvedAtuIds ??
+      [],
   });
 }
 
@@ -319,6 +365,7 @@ async function validateSnapshotAgainstTeachingPlan(
 ) {
   return buildValidatedSnapshot(prisma, {
     documentId: '',
+    existingSnapshot: input.snapshot,
     fallbackSectionId: input.snapshot.currentSectionId,
     fallbackSegmentId: input.snapshot.currentSegmentId,
     fallbackStep: input.snapshot.currentStep,

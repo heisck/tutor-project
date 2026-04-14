@@ -7,6 +7,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { registerAuthRoutes } from './auth/routes.js';
 import type { GoogleOauthClient } from './auth/oauth/google.js';
 import { loadApiEnv, type ApiEnv } from './config/env.js';
+import { registerFeedbackRoutes } from './feedback/routes.js';
 import {
   createDocumentProcessingQueue,
   type DocumentProcessingQueue,
@@ -112,6 +113,19 @@ export async function buildApp(
   await registerTutorRoutes(app, {
     env,
     prisma: prismaClient,
+    redis: redisClient,
+    ...(options.rateLimitKeyPrefix === undefined
+      ? {}
+      : { rateLimitKeyPrefix: options.rateLimitKeyPrefix }),
+  });
+
+  await registerFeedbackRoutes(app, {
+    env,
+    prisma: prismaClient,
+    redis: redisClient,
+    ...(options.rateLimitKeyPrefix === undefined
+      ? {}
+      : { rateLimitKeyPrefix: options.rateLimitKeyPrefix }),
   });
 
   app.addHook('onClose', async () => {

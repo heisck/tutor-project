@@ -129,6 +129,20 @@ enum LessonSegmentExplanationStrategy {
   WHY_FIRST
 }
 
+enum FeedbackContentType {
+  TUTOR_EXPLANATION
+  ASSISTANT_ANSWER
+}
+
+enum FeedbackReason {
+  HALLUCINATION
+  POOR_EXPLANATION
+}
+
+enum FeedbackAlertStatus {
+  PENDING_REVIEW
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -156,6 +170,7 @@ model User {
   coverageLedger   CoverageLedger[]
   lessonSegments   LessonSegment[]
   handoffSnapshots SessionHandoffSnapshot[]
+  userFeedback     UserFeedback[]
   sessions         AuthSession[]
   studySessions    StudySession[]
   learningProfile  LearningProfile?
@@ -242,6 +257,8 @@ model Document {
   lessonSegments        LessonSegment[]
   handoffSnapshots      SessionHandoffSnapshot[]
   studySessions         StudySession[]
+  userFeedback          UserFeedback[]
+  feedbackAlerts        FeedbackAlert[]
 
   @@index([courseId])
   @@index([processingStatus])
@@ -388,6 +405,8 @@ model Concept {
   atus             AtomicTeachableUnit[]
   lessonSegments   LessonSegment[]
   misconceptions   Misconception[]
+  userFeedback     UserFeedback[]
+  feedbackAlerts   FeedbackAlert[]
   prerequisiteFor  ConceptPrerequisite[] @relation("PrerequisiteConcept")
   dependsOn        ConceptPrerequisite[] @relation("DependentConcept")
 
@@ -472,6 +491,7 @@ model StudySession {
   learningProfile      LearningProfile?   @relation(fields: [learningProfileId], references: [id], onDelete: SetNull)
   lessonSegments       LessonSegment[]
   handoffSnapshot      SessionHandoffSnapshot?
+  userFeedback         UserFeedback[]
 
   @@index([documentId])
   @@index([learningProfileId])
@@ -507,6 +527,8 @@ model LessonSegment {
   concept               Concept                          @relation(fields: [conceptId], references: [id], onDelete: Cascade)
   section               DocumentSection?                 @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   currentForSessions    StudySession[]                   @relation("StudySessionCurrentSegment")
+  userFeedback          UserFeedback[]
+  feedbackAlerts        FeedbackAlert[]
 
   @@index([conceptId])
   @@index([documentId])
@@ -536,4 +558,52 @@ model SessionHandoffSnapshot {
 
   @@index([documentId])
   @@index([userId])
+}
+
+model UserFeedback {
+  id             String              @id @default(cuid())
+  userId         String
+  studySessionId String
+  documentId     String
+  conceptId      String
+  lessonSegmentId String
+  contentType    FeedbackContentType
+  reason         FeedbackReason
+  messageId      String?
+  scopeKey       String
+  createdAt      DateTime            @default(now())
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studySession   StudySession        @relation(fields: [studySessionId], references: [id], onDelete: Cascade)
+  document       Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  concept        Concept             @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  lessonSegment  LessonSegment       @relation(fields: [lessonSegmentId], references: [id], onDelete: Cascade)
+
+  @@index([conceptId])
+  @@index([documentId])
+  @@index([lessonSegmentId])
+  @@index([reason, scopeKey])
+  @@index([studySessionId])
+  @@index([userId])
+}
+
+model FeedbackAlert {
+  id             String              @id @default(cuid())
+  scopeKey       String              @unique
+  documentId     String
+  conceptId      String
+  lessonSegmentId String?
+  contentType    FeedbackContentType
+  reason         FeedbackReason
+  feedbackCount  Int
+  threshold      Int
+  status         FeedbackAlertStatus @default(PENDING_REVIEW)
+  triggeredAt    DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  document       Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  concept        Concept             @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  lessonSegment  LessonSegment?      @relation(fields: [lessonSegmentId], references: [id], onDelete: SetNull)
+
+  @@index([conceptId])
+  @@index([documentId])
+  @@index([lessonSegmentId])
 }

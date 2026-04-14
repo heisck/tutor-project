@@ -24,7 +24,7 @@ export class TutorStreamTransportError extends Error {
 export async function buildOwnedTutorStreamEvents(
   prisma: Pick<
     DatabaseClient,
-    'lessonSegment' | 'sessionHandoffSnapshot' | 'studySession'
+    'coverageLedger' | 'lessonSegment' | 'sessionHandoffSnapshot' | 'studySession'
   >,
   input: {
     now?: Date;

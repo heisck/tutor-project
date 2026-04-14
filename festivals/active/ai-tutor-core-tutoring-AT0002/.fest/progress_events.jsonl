@@ -144,3 +144,10 @@
 {"ts":"2026-04-14T05:47:09.012248700Z","event":"wf_step_start","phase":"gate:006_TUTOR_RUNTIME","step":4}
 {"ts":"2026-04-14T05:47:09.012248700Z","event":"wf_step_done","phase":"gate:006_TUTOR_RUNTIME","step":4}
 {"ts":"2026-04-14T06:00:31.905363167Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/01_tutor_session_shell_and_sse_rendering.md"}
+{"ts":"2026-04-14T07:03:50.216690483Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/02_calibration_response_submission_and_katex_capable_explanation_ui.md"}
+{"ts":"2026-04-14T07:36:45.012510743Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/03_pause_resume_session_continuity_and_session_summary_ui.md"}
+{"ts":"2026-04-14T07:55:06.631670526Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/04_assistant_question_endpoint_integration_and_in_session_assistant_ui.md"}
+{"ts":"2026-04-14T08:21:49.329818652Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/05_hallucination_feedback_capture_and_alert_threshold_workflow.md"}
+{"ts":"2026-04-14T08:22:07.874953669Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/06_testing.md"}
+{"ts":"2026-04-14T08:22:39.05214181Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/07_review.md"}
+{"ts":"2026-04-14T08:22:58.282514205Z","event":"completed","task":"007_TUTOR_EXPERIENCE/01_session_experience/08_iterate.md"}

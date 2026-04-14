@@ -1,13 +1,17 @@
-import type { DatabaseClient } from '@ai-tutor-pwa/db';
+import { CoverageStatus, type DatabaseClient } from '@ai-tutor-pwa/db';
 import {
   learnerResponseSchema,
+  type SessionMasterySnapshotItem,
   startTutorStreamRequestSchema,
+  tutorAssistantQuestionRequestSchema,
   TUTOR_PATHS,
 } from '@ai-tutor-pwa/shared';
 import type { FastifyInstance } from 'fastify';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
 import type { ApiEnv } from '../config/env.js';
+import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
+import type { RedisClient } from '../lib/redis.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import {
   buildOwnedTutorStreamEvents,
@@ -16,16 +20,27 @@ import {
   TutorStreamTransportError,
 } from './transport.js';
 import {
-  applyEvaluationToMastery,
   classifyError,
   detectConfusionSignals,
+  recordExplanationAttempt,
 } from './evaluation.js';
-import { enforceMasteryTransition, persistCoverageStatusUpdate } from './mastery.js';
+import {
+  answerOwnedTutorQuestion,
+  TutorAssistantQuestionError,
+} from './assistant.js';
+import {
+  enforceMasteryTransition,
+  loadMasteryRecordsFromState,
+  persistCoverageStatusUpdate,
+} from './mastery.js';
 import { getOwnedStudySessionState } from '../sessions/state.js';
+import { saveOwnedStudySessionHandoffSnapshot } from '../sessions/handoff.js';
 
 interface TutorRouteDependencies {
   env: ApiEnv;
   prisma: DatabaseClient;
+  rateLimitKeyPrefix?: string;
+  redis: RedisClient;
 }
 
 export async function registerTutorRoutes(
@@ -37,6 +52,12 @@ export async function registerTutorRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const assistantRateLimit = createUserRateLimitPreHandler(dependencies.redis, {
+    keyPrefix:
+      dependencies.rateLimitKeyPrefix ?? 'rate-limit:tutor-assistant-question',
+    limit: 30,
+    timeWindowSeconds: 60,
+  });
 
   app.post(
     TUTOR_PATHS.next,
@@ -156,7 +177,16 @@ export async function registerTutorRoutes(
       };
 
       // Apply evaluation to mastery state
-      const masteryResult = enforceMasteryTransition(null, {
+      const existingMastery = loadMasteryRecordsFromState(
+        [segment],
+        sessionState.handoffSnapshot?.masterySnapshot ?? [],
+      ).get(segment.conceptId);
+      const seededMastery = recordExplanationAttempt(
+        existingMastery ?? null,
+        segment.conceptId,
+        mapExplanationStrategyToSessionType(segment.explanationStrategy),
+      );
+      const masteryResult = enforceMasteryTransition(seededMastery, {
         conceptId: segment.conceptId,
         evaluation,
         segment,
@@ -172,6 +202,36 @@ export async function registerTutorRoutes(
         });
       }
 
+      await saveOwnedStudySessionHandoffSnapshot(dependencies.prisma, {
+        handoff: {
+          currentSectionId: segment.sectionId,
+          currentSegmentId: segment.id,
+          currentStep: sessionState.session.currentStep,
+          explanationHistory:
+            sessionState.handoffSnapshot?.explanationHistory ?? [],
+          masterySnapshot: mergeMasterySnapshot(
+            sessionState.handoffSnapshot?.masterySnapshot ?? [],
+            {
+              conceptId: masteryResult.masteryRecord.conceptId,
+              confusionScore: masteryResult.masteryRecord.confusionScore,
+              evidenceCount: masteryResult.masteryRecord.evidenceHistory.length,
+              status: masteryResult.masteryRecord.status,
+            },
+          ),
+          resumeNotes: buildResumeNotes(
+            segment.conceptTitle,
+            masteryResult.masteryRecord.status,
+          ),
+          unresolvedAtuIds: updateUnresolvedAtuIds(
+            sessionState.summary.unresolvedAtuIds,
+            segment.atuIds,
+            masteryResult.coverageStatusUpdate,
+          ),
+        },
+        sessionId,
+        userId,
+      });
+
       return reply.status(200).send({
         evaluation,
         mastery: {
@@ -183,4 +243,102 @@ export async function registerTutorRoutes(
       });
     },
   );
+
+  app.post(
+    TUTOR_PATHS.question,
+    {
+      preHandler: [requireAuth, requireAllowedOrigin, assistantRateLimit],
+    },
+    async (request, reply): Promise<void> => {
+      const parsedBody = tutorAssistantQuestionRequestSchema.safeParse(
+        request.body,
+      );
+
+      if (!parsedBody.success) {
+        return reply.status(400).send({
+          message: parsedBody.error.issues[0]?.message ?? 'Invalid request body',
+        });
+      }
+
+      try {
+        const response = await answerOwnedTutorQuestion(dependencies.prisma, {
+          question: parsedBody.data.question,
+          sessionId: parsedBody.data.sessionId,
+          userId: request.auth!.userId,
+        });
+
+        if (response === null) {
+          return reply.status(404).send({
+            message: 'Study session not found',
+          });
+        }
+
+        return reply.status(200).send(response);
+      } catch (error) {
+        if (
+          error instanceof TutorAssistantQuestionError ||
+          error instanceof StudySessionStateProjectionError
+        ) {
+          return reply.status(409).send({
+            message: error.message,
+          });
+        }
+
+        throw error;
+      }
+    },
+  );
+}
+
+function mergeMasterySnapshot(
+  currentSnapshot: readonly SessionMasterySnapshotItem[],
+  nextEntry: SessionMasterySnapshotItem,
+): SessionMasterySnapshotItem[] {
+  const nextSnapshot = currentSnapshot.filter(
+    (entry) => entry.conceptId !== nextEntry.conceptId,
+  );
+
+  return [...nextSnapshot, nextEntry];
+}
+
+function buildResumeNotes(
+  conceptTitle: string,
+  masteryStatus: SessionMasterySnapshotItem['status'],
+): string {
+  if (masteryStatus === 'weak' || masteryStatus === 'partial') {
+    return `Quick recheck recommended for ${conceptTitle} before continuing.`;
+  }
+
+  return `Resume from ${conceptTitle} and continue the tutoring flow.`;
+}
+
+function updateUnresolvedAtuIds(
+  unresolvedAtuIds: readonly string[],
+  segmentAtuIds: readonly string[],
+  coverageStatusUpdate: CoverageStatus | null,
+): string[] {
+  const nextUnresolvedAtuIds = new Set(unresolvedAtuIds);
+
+  for (const atuId of segmentAtuIds) {
+    if (coverageStatusUpdate === CoverageStatus.ASSESSED) {
+      nextUnresolvedAtuIds.delete(atuId);
+    } else {
+      nextUnresolvedAtuIds.add(atuId);
+    }
+  }
+
+  return [...nextUnresolvedAtuIds];
+}
+
+function mapExplanationStrategyToSessionType(
+  explanationStrategy: 'example_first' | 'why_first' | 'direct',
+): 'concrete_example' | 'analogy' | 'formal_definition' {
+  switch (explanationStrategy) {
+    case 'direct':
+      return 'formal_definition';
+    case 'why_first':
+      return 'analogy';
+    case 'example_first':
+      return 'concrete_example';
+  }
 }

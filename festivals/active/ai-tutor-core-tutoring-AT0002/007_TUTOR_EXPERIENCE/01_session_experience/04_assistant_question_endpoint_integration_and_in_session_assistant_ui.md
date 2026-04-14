@@ -4,11 +4,13 @@ fest_id: 04_assistant_question_endpoint_integration_and_in_session_assistant_ui.
 fest_name: assistant question endpoint integration and in session assistant ui
 fest_parent: 01_session_experience
 fest_order: 4
-fest_status: pending
+fest_status: completed
 fest_autonomy: medium
 fest_created: 2026-04-13T17:14:37.579097488Z
+fest_updated: 2026-04-14T07:55:06.639600757Z
 fest_tracking: true
 ---
+
 
 # Task: assistant question endpoint integration and in session assistant ui
 

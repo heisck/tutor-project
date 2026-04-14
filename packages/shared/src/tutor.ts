@@ -1,8 +1,11 @@
 import { z } from 'zod';
 
+import { groundedChunkSchema } from './tutor-runtime.js';
+
 export const TUTOR_PATHS = {
   evaluate: '/api/v1/tutor/evaluate',
   next: '/api/v1/tutor/next',
+  question: '/api/v1/tutor/question',
 } as const;
 
 export const startTutorStreamRequestSchema = z
@@ -12,6 +15,43 @@ export const startTutorStreamRequestSchema = z
   .strict();
 export type StartTutorStreamRequest = z.infer<
   typeof startTutorStreamRequestSchema
+>;
+
+export const tutorAssistantQuestionRequestSchema = z
+  .object({
+    question: z
+      .string()
+      .trim()
+      .min(1, 'Question is required')
+      .max(2000, 'Question must be 2000 characters or fewer'),
+    sessionId: z.string().trim().min(1, 'sessionId is required'),
+  })
+  .strict();
+export type TutorAssistantQuestionRequest = z.infer<
+  typeof tutorAssistantQuestionRequestSchema
+>;
+
+export const tutorAssistantOutcomeSchema = z.enum([
+  'answered',
+  'weak_grounding',
+  'refused',
+]);
+export type TutorAssistantOutcome = z.infer<
+  typeof tutorAssistantOutcomeSchema
+>;
+
+export const tutorAssistantQuestionResponseSchema = z
+  .object({
+    answer: z.string().min(1),
+    currentSegmentId: z.string().min(1).nullable(),
+    documentId: z.string().min(1),
+    groundedEvidence: z.array(groundedChunkSchema).max(3),
+    outcome: tutorAssistantOutcomeSchema,
+    understandingCheck: z.string().min(1).nullable(),
+  })
+  .strict();
+export type TutorAssistantQuestionResponse = z.infer<
+  typeof tutorAssistantQuestionResponseSchema
 >;
 
 export const tutorStreamControlActionSchema = z.enum(['stream_open']);
