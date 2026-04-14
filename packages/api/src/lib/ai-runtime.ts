@@ -1,11 +1,3 @@
-// ---------------------------------------------------------------------------
-// AI Runtime — centralised wrapper for all AI provider calls
-// Provides: config registry, typed result union, error classification,
-//           timeout enforcement, transient retry, token budget checks, logging
-// ---------------------------------------------------------------------------
-
-// ── 1. Config registry ──────────────────────────────────────────────────────
-
 export interface AiCallConfig {
   label: string;
   maxTokens: number;
@@ -42,7 +34,6 @@ export const AI_CALL_CONFIGS = {
 
 export type AiCallType = keyof typeof AI_CALL_CONFIGS;
 
-// ── 2. Typed result union ────────────────────────────────────────────────────
 
 export interface AiCallUsage {
   inputTokens: number;
@@ -82,9 +73,6 @@ export interface AiCallFnResult<T> {
   usage: AiCallUsage | null;
 }
 
-// ── 3. Error classification helpers ─────────────────────────────────────────
-
-/** Shape used by Anthropic/OpenAI SDK HTTP errors */
 interface HttpLikeError {
   status?: number;
   code?: string;
@@ -134,21 +122,30 @@ export function isAbortError(error: unknown): boolean {
 }
 
 export function extractRetryAfterMs(error: unknown): number | null {
-  const e = toHttpLike(error);
-  if (!e.headers) return null;
+  if (
+    error === null ||
+    typeof error !== 'object' ||
+    !('headers' in error)
+  ) {
+    return null;
+  }
 
-  const raw = e.headers['retry-after'];
-  if (raw === undefined || raw === null) return null;
+  const headers = (error as { headers: unknown }).headers;
 
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  if (!value) return null;
+  // Both Anthropic and OpenAI SDKs use the web Headers class
+  let raw: string | null = null;
+  if (headers instanceof Headers) {
+    raw = headers.get('retry-after');
+  }
+
+  if (raw === null) return null;
 
   // Could be seconds (numeric) or an HTTP-date
-  const seconds = Number(value);
-  if (!isNaN(seconds)) return Math.round(seconds * 1000);
+  const seconds = Number(raw);
+  if (!isNaN(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
 
   // HTTP-date fallback
-  const date = new Date(value);
+  const date = new Date(raw);
   if (!isNaN(date.getTime())) {
     return Math.max(date.getTime() - Date.now(), 0);
   }
@@ -173,8 +170,6 @@ export function formatUsage(usage: AiCallUsage | null): string {
   return `in=${usage.inputTokens} out=${usage.outputTokens}`;
 }
 
-// ── 4. Logging ───────────────────────────────────────────────────────────────
-
 function logAiCall<T>(
   config: AiCallConfig,
   result: AiCallResult<T>,
@@ -194,8 +189,6 @@ function logAiCall<T>(
     );
   }
 }
-
-// ── 5. executeAiCall ─────────────────────────────────────────────────────────
 
 export async function executeAiCall<T>(
   callType: AiCallType,
