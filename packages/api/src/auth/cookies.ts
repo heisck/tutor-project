@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiEnv } from '../config/env.js';
 
 export const SESSION_COOKIE_NAME = 'ai_tutor_pwa_session';
+export const CSRF_COOKIE_NAME = 'ai_tutor_pwa_csrf';
 const OAUTH_STATE_COOKIE_NAME = 'ai_tutor_pwa_oauth_state';
 const OAUTH_CODE_VERIFIER_COOKIE_NAME = 'ai_tutor_pwa_oauth_code_verifier';
 
@@ -18,6 +19,18 @@ function buildCookieOptions(env: ApiEnv) {
     secure: isSecureCookieEnvironment(env),
     signed: true,
   };
+}
+
+export function setCsrfCookie(
+  reply: FastifyReply,
+  env: ApiEnv,
+  csrfToken: string,
+): void {
+  reply.setCookie(CSRF_COOKIE_NAME, csrfToken, buildCookieOptions(env));
+}
+
+export function clearCsrfCookie(reply: FastifyReply, env: ApiEnv): void {
+  reply.clearCookie(CSRF_COOKIE_NAME, buildCookieOptions(env));
 }
 
 export function setSessionCookie(
@@ -81,6 +94,12 @@ export function getSessionTokenFromRequest(
   request: FastifyRequest,
 ): string | null {
   return getSignedCookie(request, SESSION_COOKIE_NAME);
+}
+
+export function getCsrfTokenFromRequest(
+  request: FastifyRequest,
+): string | null {
+  return getSignedCookie(request, CSRF_COOKIE_NAME);
 }
 
 export function getOauthStateFromRequest(

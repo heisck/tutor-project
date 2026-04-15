@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { createPrismaClient } from '@ai-tutor-pwa/db';
-import { AUTH_PATHS, PROFILE_PATHS, UPLOAD_PATHS } from '@ai-tutor-pwa/shared';
+import { AUTH_HEADER_NAMES, AUTH_PATHS, PROFILE_PATHS, UPLOAD_PATHS } from '@ai-tutor-pwa/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
@@ -10,6 +10,7 @@ import type { DocumentProcessingQueue } from '../src/documents/queue.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import type { UploadStorageClient } from '../src/upload/storage/r2.js';
 import { createApiTestEnv } from './test-env.js';
+import { fetchAgentCsrfToken } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -60,11 +61,12 @@ afterEach(async () => {
 
 describe('upload routes', () => {
   it('uploads a supported file successfully', async () => {
-    await signUp(agent, 'valid-upload');
+    const { csrfToken: csrfValid } = await signUp(agent, 'valid-upload');
 
     const validateResponse = await agent
       .post(UPLOAD_PATHS.validate)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfValid)
       .send(buildUploadDescriptor('notes.pdf', 'application/pdf', pdfBuffer().byteLength));
 
     expect(validateResponse.status).toBe(200);
@@ -72,6 +74,7 @@ describe('upload routes', () => {
     const createResponse = await agent
       .post(UPLOAD_PATHS.create)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfValid)
       .send(buildUploadDescriptor('notes.pdf', 'application/pdf', pdfBuffer().byteLength));
 
     expect(createResponse.status).toBe(201);
@@ -79,6 +82,7 @@ describe('upload routes', () => {
     const finishResponse = await agent
       .post(UPLOAD_PATHS.finish)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfValid)
       .field('uploadId', createResponse.body.uploadId)
       .attach('file', pdfBuffer(), {
         contentType: 'application/pdf',
@@ -98,11 +102,12 @@ describe('upload routes', () => {
   });
 
   it('rejects unsupported file types', async () => {
-    await signUp(agent, 'unsupported-upload');
+    const { csrfToken: csrfUnsupported } = await signUp(agent, 'unsupported-upload');
 
     const response = await agent
       .post(UPLOAD_PATHS.create)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfUnsupported)
       .send(buildUploadDescriptor('virus.exe', 'application/x-msdownload', 128));
 
     expect(response.status).toBe(400);
@@ -112,11 +117,12 @@ describe('upload routes', () => {
   });
 
   it('rejects oversized files', async () => {
-    await signUp(agent, 'oversized-upload');
+    const { csrfToken: csrfOversized } = await signUp(agent, 'oversized-upload');
 
     const response = await agent
       .post(UPLOAD_PATHS.create)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfOversized)
       .send(buildUploadDescriptor('notes.pdf', 'application/pdf', 100 * 1024 * 1024 + 1));
 
     expect(response.status).toBe(413);
@@ -132,18 +138,20 @@ describe('upload routes', () => {
   });
 
   it('associates stored file locations with the correct authenticated user', async () => {
-    const email = await signUp(agent, 'ownership');
+    const { email, csrfToken: csrfOwnership } = await signUp(agent, 'ownership');
     const profileResponse = await agent.get(PROFILE_PATHS.profile);
     const userId = profileResponse.body.id as string;
 
     const createResponse = await agent
       .post(UPLOAD_PATHS.create)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfOwnership)
       .send(buildUploadDescriptor('notes.pdf', 'application/pdf', pdfBuffer().byteLength));
 
     const finishResponse = await agent
       .post(UPLOAD_PATHS.finish)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfOwnership)
       .field('uploadId', createResponse.body.uploadId)
       .attach('file', pdfBuffer(), {
         contentType: 'application/pdf',
@@ -159,13 +167,14 @@ describe('upload routes', () => {
   });
 
   it('rate limits uploads after 5 successful upload creations per hour', async () => {
-    await signUp(agent, 'rate-limit');
+    const { csrfToken: csrfRateLimit } = await signUp(agent, 'rate-limit');
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const fileName = `notes-${attempt}.pdf`;
       const createResponse = await agent
         .post(UPLOAD_PATHS.create)
         .set('Origin', 'http://localhost:3000')
+        .set(AUTH_HEADER_NAMES.csrf, csrfRateLimit)
         .send(buildUploadDescriptor(fileName, 'application/pdf', pdfBuffer().byteLength));
 
       expect(createResponse.status).toBe(201);
@@ -173,6 +182,7 @@ describe('upload routes', () => {
       const finishResponse = await agent
         .post(UPLOAD_PATHS.finish)
         .set('Origin', 'http://localhost:3000')
+        .set(AUTH_HEADER_NAMES.csrf, csrfRateLimit)
         .field('uploadId', createResponse.body.uploadId)
         .attach('file', pdfBuffer(), {
           contentType: 'application/pdf',
@@ -185,6 +195,7 @@ describe('upload routes', () => {
     const limitedResponse = await agent
       .post(UPLOAD_PATHS.create)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfRateLimit)
       .send(buildUploadDescriptor('notes-6.pdf', 'application/pdf', pdfBuffer().byteLength));
 
     expect(limitedResponse.status).toBe(429);
@@ -194,12 +205,13 @@ describe('upload routes', () => {
   });
 
   it('enforces the maximum of 3 concurrent uploads per user', async () => {
-    await signUp(agent, 'concurrent-limit');
+    const { csrfToken: csrfConcurrent } = await signUp(agent, 'concurrent-limit');
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await agent
         .post(UPLOAD_PATHS.create)
         .set('Origin', 'http://localhost:3000')
+        .set(AUTH_HEADER_NAMES.csrf, csrfConcurrent)
         .send(
           buildUploadDescriptor(
             `concurrent-${attempt}.pdf`,
@@ -214,6 +226,7 @@ describe('upload routes', () => {
     const fourthResponse = await agent
       .post(UPLOAD_PATHS.create)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfConcurrent)
       .send(
         buildUploadDescriptor(
           'concurrent-4.pdf',
@@ -232,15 +245,17 @@ describe('upload routes', () => {
 async function signUp(
   testAgent: ReturnType<typeof request.agent>,
   label: string,
-): Promise<string> {
+): Promise<{ email: string; csrfToken: string }> {
   const email = `${testPrefix}-${label}@example.com`;
-  const response = await testAgent.post(AUTH_PATHS.signup).send({
-    email,
-    password: 'password123',
-  });
+  const csrfToken = await fetchAgentCsrfToken(testAgent);
+  const response = await testAgent
+    .post(AUTH_PATHS.signup)
+    .set('Origin', 'http://localhost:3000')
+    .set(AUTH_HEADER_NAMES.csrf, csrfToken)
+    .send({ email, password: 'password123' });
 
   expect(response.status).toBe(201);
-  return email;
+  return { email, csrfToken };
 }
 
 function buildUploadDescriptor(

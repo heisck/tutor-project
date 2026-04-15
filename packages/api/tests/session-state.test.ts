@@ -2,10 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { createPrismaClient } from '@ai-tutor-pwa/db';
 import {
-  AUTH_PATHS,
   SESSION_PATHS,
   TUTOR_PATHS,
-  type AuthSessionResponse,
   type SessionHandoffSnapshotInput,
   type StudySessionLifecycleResponse,
   type StudySessionStateResponse,
@@ -17,6 +15,7 @@ import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { buildInjectHeaders, createInjectAuthSession } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -67,7 +66,7 @@ describe('session state route', () => {
         account.userId,
         'owner-state.pdf',
       );
-      const startedSession = await startStudySession(account.cookie, document.id);
+      const startedSession = await startStudySession(account,document.id);
 
       const startedState = await readSessionState(
         account.cookie,
@@ -97,10 +96,7 @@ describe('session state route', () => {
       const handoff = createHandoffInput(resumedSegment);
 
       const pauseResponse = await app.inject({
-        headers: {
-          cookie: account.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(account),
         method: 'POST',
         payload: {
           handoff,
@@ -127,10 +123,7 @@ describe('session state route', () => {
       });
 
       const resumeResponse = await app.inject({
-        headers: {
-          cookie: account.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(account),
         method: 'POST',
         url: SESSION_PATHS.resume(startedSession.session.id),
       });
@@ -169,7 +162,7 @@ describe('session state route', () => {
       owner.userId,
       'state-owner.pdf',
     );
-    const startedSession = await startStudySession(owner.cookie, document.id);
+    const startedSession = await startStudySession(owner,document.id);
 
     const response = await app.inject({
       headers: {
@@ -191,7 +184,7 @@ describe('session state route', () => {
       account.userId,
       'evaluation-owner.pdf',
     );
-    const startedSession = await startStudySession(account.cookie, document.id);
+    const startedSession = await startStudySession(account,document.id);
     const startedState = await readSessionState(
       account.cookie,
       startedSession.session.id,
@@ -199,10 +192,7 @@ describe('session state route', () => {
     const currentSegment = startedState.teachingPlan.segments[0]!;
 
     const evaluationResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       payload: {
         content:
@@ -303,26 +293,6 @@ function createMiniCalibrationInput() {
   } as const;
 }
 
-function extractSessionCookie(
-  setCookieHeader: string | readonly string[] | undefined,
-): string {
-  const rawCookie = Array.isArray(setCookieHeader)
-    ? setCookieHeader.find((value) => value.startsWith('ai_tutor_pwa_session='))
-    : setCookieHeader;
-
-  if (rawCookie === undefined) {
-    throw new Error('Expected an authenticated session cookie');
-  }
-
-  const [cookie] = rawCookie.split(';');
-
-  if (cookie === undefined) {
-    throw new Error('Expected a serializable session cookie');
-  }
-
-  return cookie;
-}
-
 function parseJson<T>(body: string): T {
   return JSON.parse(body) as T;
 }
@@ -346,50 +316,21 @@ async function readSessionState(
 
 async function signUpAndAuthenticate(label: string): Promise<{
   cookie: string;
+  csrfToken: string;
   userId: string;
 }> {
-  const signupResponse = await app.inject({
-    headers: {
-      origin: 'http://localhost:3000',
-    },
-    method: 'POST',
-    payload: {
-      email: `${testEmailPrefix}-${label}@example.com`,
-      password: 'password123',
-    },
-    url: AUTH_PATHS.signup,
+  return createInjectAuthSession(app, {
+    email: `${testEmailPrefix}-${label}@example.com`,
+    password: 'password123',
   });
-
-  expect(signupResponse.statusCode).toBe(201);
-
-  const cookie = extractSessionCookie(signupResponse.headers['set-cookie']);
-  const sessionResponse = await app.inject({
-    headers: {
-      cookie,
-    },
-    method: 'GET',
-    url: AUTH_PATHS.session,
-  });
-
-  expect(sessionResponse.statusCode).toBe(200);
-
-  const sessionBody = parseJson<AuthSessionResponse>(sessionResponse.body);
-
-  return {
-    cookie,
-    userId: sessionBody.user.id,
-  };
 }
 
 async function startStudySession(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   documentId: string,
 ): Promise<StudySessionLifecycleResponse> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       calibration: createMiniCalibrationInput(),

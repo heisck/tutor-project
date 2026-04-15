@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
+import { createRequireCsrfPreHandler } from '../auth/csrf.js';
 import type { ApiEnv } from '../config/env.js';
 import type { DocumentProcessingQueue } from '../documents/queue.js';
 import {
@@ -68,6 +69,7 @@ export async function registerUploadRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const requireCsrf = createRequireCsrfPreHandler(dependencies.env);
   const uploadCreateRateLimit = createUserRateLimitPreHandler(dependencies.redis, {
     keyPrefix: 'rate-limit:upload:create',
     limit: 5,
@@ -92,7 +94,12 @@ export async function registerUploadRoutes(
   app.post(
     UPLOAD_PATHS.validate,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, uploadValidateRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        uploadValidateRateLimit,
+      ],
     },
     async (request, reply): Promise<UploadValidationResponse | void> => {
       try {
@@ -115,7 +122,12 @@ export async function registerUploadRoutes(
   app.post(
     UPLOAD_PATHS.create,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, uploadCreateRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        uploadCreateRateLimit,
+      ],
     },
     async (request, reply): Promise<UploadCreateResponse | void> => {
       try {
@@ -167,7 +179,12 @@ export async function registerUploadRoutes(
   app.post(
     UPLOAD_PATHS.finish,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, uploadFinishRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        uploadFinishRateLimit,
+      ],
     },
     async (request, reply): Promise<UploadFinishResponse | void> => {
       let reservedUploadId: string | null = null;

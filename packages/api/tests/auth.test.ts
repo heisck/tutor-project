@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { AuthProvider, createPrismaClient } from '@ai-tutor-pwa/db';
-import { AUTH_PATHS } from '@ai-tutor-pwa/shared';
+import { AUTH_HEADER_NAMES, AUTH_PATHS } from '@ai-tutor-pwa/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
@@ -11,6 +11,7 @@ import type { GoogleOauthClient } from '../src/auth/oauth/google.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { fetchAgentCsrfToken } from './auth-test-helpers.js';
 
 const testEmailPrefix = `auth-test-${randomUUID()}`;
 const baseEnv = createApiTestEnv();
@@ -59,9 +60,11 @@ afterEach(async () => {
 
 describe('auth routes', () => {
   it('signs up successfully and sets an httpOnly session cookie', async () => {
+    const csrfToken = await fetchAgentCsrfToken(agent);
     const response = await agent
       .post(AUTH_PATHS.signup)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email: createTestEmail('signup'),
         password: 'password123',
@@ -89,9 +92,11 @@ describe('auth routes', () => {
       },
     });
 
+    const csrfToken = await fetchAgentCsrfToken(agent);
     const response = await agent
       .post(AUTH_PATHS.signin)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email,
         password: 'password123',
@@ -117,9 +122,11 @@ describe('auth routes', () => {
       },
     });
 
+    const csrfToken = await fetchAgentCsrfToken(agent);
     const response = await agent
       .post(AUTH_PATHS.signin)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email,
         password: 'wrong-password',
@@ -132,9 +139,11 @@ describe('auth routes', () => {
   });
 
   it('signs out successfully and invalidates the current session', async () => {
+    const csrfToken = await fetchAgentCsrfToken(agent);
     const signupResponse = await agent
       .post(AUTH_PATHS.signup)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email: createTestEmail('signout'),
         password: 'password123',
@@ -144,7 +153,8 @@ describe('auth routes', () => {
 
     const signoutResponse = await agent
       .post(AUTH_PATHS.signout)
-      .set('Origin', 'http://localhost:3000');
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken);
 
     expect(signoutResponse.status).toBe(204);
 
@@ -154,9 +164,11 @@ describe('auth routes', () => {
 
   it('returns the authenticated user on session lookup', async () => {
     const email = createTestEmail('session');
+    const csrfToken = await fetchAgentCsrfToken(agent);
     await agent
       .post(AUTH_PATHS.signup)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email,
         password: 'password123',
@@ -182,9 +194,11 @@ describe('auth routes', () => {
 
   it('enforces session expiry', async () => {
     const email = createTestEmail('expired-session');
+    const csrfToken = await fetchAgentCsrfToken(agent);
     await agent
       .post(AUTH_PATHS.signup)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email,
         password: 'password123',
@@ -212,11 +226,13 @@ describe('auth routes', () => {
 
   it('rate limits auth endpoints after 10 requests per minute per IP', async () => {
     const email = createTestEmail('rate-limit');
+    const csrfToken = await fetchAgentCsrfToken(agent);
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const response = await agent
         .post(AUTH_PATHS.signin)
         .set('Origin', 'http://localhost:3000')
+        .set(AUTH_HEADER_NAMES.csrf, csrfToken)
         .send({
           email,
           password: 'password123',
@@ -228,6 +244,7 @@ describe('auth routes', () => {
     const limitedResponse = await agent
       .post(AUTH_PATHS.signin)
       .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfToken)
       .send({
         email,
         password: 'password123',
@@ -284,20 +301,38 @@ describe('auth routes', () => {
       redisClient,
     } satisfies BuildAppOptions);
     await secureApp.ready();
-    const secureAgent = request.agent(secureApp.server);
 
-    const response = await secureAgent
-      .post(AUTH_PATHS.signup)
-      .set('Origin', 'http://localhost:3000')
-      .send({
+    // Use inject instead of supertest agent — tough-cookie won't send Secure cookies over HTTP
+    const csrfResponse = await secureApp.inject({
+      headers: { origin: 'http://localhost:3000' },
+      method: 'GET',
+      url: AUTH_PATHS.csrf,
+    });
+    const { csrfToken } = JSON.parse(csrfResponse.body) as { csrfToken: string };
+    const rawSetCookie = csrfResponse.headers['set-cookie'];
+    const setCookieHeaders = Array.isArray(rawSetCookie) ? rawSetCookie : [rawSetCookie ?? ''];
+    const csrfCookieValue = setCookieHeaders
+      .find((c) => c.startsWith('ai_tutor_pwa_csrf='))
+      ?.split(';')[0] ?? '';
+
+    const response = await secureApp.inject({
+      headers: {
+        cookie: csrfCookieValue,
+        origin: 'http://localhost:3000',
+        [AUTH_HEADER_NAMES.csrf]: csrfToken,
+      },
+      method: 'POST',
+      payload: {
         email: createTestEmail('secure-cookie'),
         password: 'password123',
-      });
+      },
+      url: AUTH_PATHS.signup,
+    });
 
-    expect(response.status).toBe(201);
-    expect(response.headers['set-cookie']).toEqual(
-      expect.arrayContaining([expect.stringContaining('Secure')]),
-    );
+    expect(response.statusCode).toBe(201);
+    const setCookie = response.headers['set-cookie'];
+    const cookieStrings = Array.isArray(setCookie) ? setCookie : [setCookie ?? ''];
+    expect(cookieStrings.some((c) => c.includes('Secure'))).toBe(true);
 
     await secureApp.close();
   });

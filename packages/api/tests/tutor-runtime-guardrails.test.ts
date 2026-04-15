@@ -2,10 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { createPrismaClient } from '@ai-tutor-pwa/db';
 import {
-  AUTH_PATHS,
   SESSION_PATHS,
   TUTOR_PATHS,
-  type AuthSessionResponse,
   type MiniCalibrationInput,
   type StudySessionLifecycleResponse,
 } from '@ai-tutor-pwa/shared';
@@ -24,6 +22,7 @@ import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { buildInjectHeaders, createInjectAuthSession } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -71,13 +70,10 @@ describe('tutor runtime guardrails', () => {
   it('records runtime usage for tutor streaming, evaluation, and assistant answers', async () => {
     const owner = await signUpAndAuthenticate('usage-owner');
     const document = await createOwnedSessionDocument(owner.userId, 'usage-owner.pdf');
-    const startedSession = await startStudySession(owner.cookie, document.id);
+    const startedSession = await startStudySession(owner, document.id);
 
     const streamResponse = await app.inject({
-      headers: {
-        cookie: owner.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(owner),
       method: 'POST',
       payload: {
         sessionId: startedSession.session.id,
@@ -88,10 +84,7 @@ describe('tutor runtime guardrails', () => {
     expect(streamResponse.statusCode).toBe(200);
 
     const evaluationResponse = await app.inject({
-      headers: {
-        cookie: owner.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(owner),
       method: 'POST',
       payload: {
         content:
@@ -105,10 +98,7 @@ describe('tutor runtime guardrails', () => {
     expect(evaluationResponse.statusCode).toBe(200);
 
     const questionResponse = await app.inject({
-      headers: {
-        cookie: owner.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(owner),
       method: 'POST',
       payload: {
         question: 'Why are cells the basic unit of life?',
@@ -156,17 +146,14 @@ describe('tutor runtime guardrails', () => {
   it('shares the 60 requests per minute tutor runtime limit across next and evaluate', async () => {
     const owner = await signUpAndAuthenticate('tutor-rate-limit');
     const document = await createOwnedSessionDocument(owner.userId, 'tutor-rate-limit.pdf');
-    const startedSession = await startStudySession(owner.cookie, document.id);
+    const startedSession = await startStudySession(owner, document.id);
     const rateLimitKey = `${rateLimitKeyPrefix}:tutor-runtime:${owner.userId}`;
 
     await redisClient.set(rateLimitKey, '59');
     await redisClient.expire(rateLimitKey, 60);
 
     const streamResponse = await app.inject({
-      headers: {
-        cookie: owner.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(owner),
       method: 'POST',
       payload: {
         sessionId: startedSession.session.id,
@@ -177,10 +164,7 @@ describe('tutor runtime guardrails', () => {
     expect(streamResponse.statusCode).toBe(200);
 
     const limitedEvaluationResponse = await app.inject({
-      headers: {
-        cookie: owner.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(owner),
       method: 'POST',
       payload: {
         content:
@@ -210,13 +194,10 @@ describe('tutor runtime guardrails', () => {
     const owner = await signUpAndAuthenticate('cross-user-owner');
     const intruder = await signUpAndAuthenticate('cross-user-intruder');
     const document = await createOwnedSessionDocument(owner.userId, 'cross-user-private.pdf');
-    const startedSession = await startStudySession(owner.cookie, document.id);
+    const startedSession = await startStudySession(owner, document.id);
 
     const response = await app.inject({
-      headers: {
-        cookie: intruder.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(intruder),
       method: 'POST',
       payload: {
         content:
@@ -274,76 +255,27 @@ function createMiniCalibrationInput(): MiniCalibrationInput {
   };
 }
 
-function extractSessionCookie(
-  setCookieHeader: string | readonly string[] | undefined,
-): string {
-  const rawCookie = Array.isArray(setCookieHeader)
-    ? setCookieHeader.find((value) => value.startsWith('ai_tutor_pwa_session='))
-    : setCookieHeader;
-
-  if (rawCookie === undefined) {
-    throw new Error('Expected an authenticated session cookie');
-  }
-
-  const [cookie] = rawCookie.split(';');
-
-  if (cookie === undefined) {
-    throw new Error('Expected a serializable session cookie');
-  }
-
-  return cookie;
-}
-
 function parseJson<T>(body: string): T {
   return JSON.parse(body) as T;
 }
 
 async function signUpAndAuthenticate(label: string): Promise<{
   cookie: string;
+  csrfToken: string;
   userId: string;
 }> {
-  const signupResponse = await app.inject({
-    headers: {
-      origin: 'http://localhost:3000',
-    },
-    method: 'POST',
-    payload: {
-      email: `${testEmailPrefix}-${label}@example.com`,
-      password: 'password123',
-    },
-    url: AUTH_PATHS.signup,
+  return createInjectAuthSession(app, {
+    email: `${testEmailPrefix}-${label}@example.com`,
+    password: 'password123',
   });
-
-  expect(signupResponse.statusCode).toBe(201);
-
-  const cookie = extractSessionCookie(signupResponse.headers['set-cookie']);
-  const sessionResponse = await app.inject({
-    headers: {
-      cookie,
-    },
-    method: 'GET',
-    url: AUTH_PATHS.session,
-  });
-
-  expect(sessionResponse.statusCode).toBe(200);
-
-  const sessionBody = parseJson<AuthSessionResponse>(sessionResponse.body);
-
-  return {
-    cookie,
-    userId: sessionBody.user.id,
-  };
 }
 
 async function startStudySession(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   documentId: string,
 ): Promise<StudySessionLifecycleResponse> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       calibration: createMiniCalibrationInput(),

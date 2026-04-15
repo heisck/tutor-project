@@ -9,6 +9,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
+import { createRequireCsrfPreHandler } from '../auth/csrf.js';
 import type { ApiEnv } from '../config/env.js';
 import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
 import type { RedisClient } from '../lib/redis.js';
@@ -58,6 +59,7 @@ export async function registerTutorRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const requireCsrf = createRequireCsrfPreHandler(dependencies.env);
   const tutorRateLimit = createUserRateLimitPreHandler(dependencies.redis, {
     keyPrefix:
       dependencies.rateLimitKeyPrefix === undefined
@@ -78,7 +80,7 @@ export async function registerTutorRoutes(
   app.post(
     TUTOR_PATHS.next,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, tutorRateLimit],
+      preHandler: [requireAuth, requireAllowedOrigin, requireCsrf, tutorRateLimit],
     },
     async (request, reply): Promise<void> => {
       const parsedBody = startTutorStreamRequestSchema.safeParse(request.body);
@@ -141,7 +143,7 @@ export async function registerTutorRoutes(
   app.post(
     TUTOR_PATHS.evaluate,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, tutorRateLimit],
+      preHandler: [requireAuth, requireAllowedOrigin, requireCsrf, tutorRateLimit],
     },
     async (request, reply): Promise<void> => {
       const parsedBody = learnerResponseSchema.safeParse(request.body);
@@ -298,7 +300,12 @@ export async function registerTutorRoutes(
   app.post(
     TUTOR_PATHS.question,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, assistantRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        assistantRateLimit,
+      ],
     },
     async (request, reply): Promise<void> => {
       const parsedBody = tutorAssistantQuestionRequestSchema.safeParse(

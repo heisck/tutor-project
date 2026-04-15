@@ -5,9 +5,7 @@ import {
   createPrismaClient,
 } from '@ai-tutor-pwa/db';
 import {
-  AUTH_PATHS,
   SESSION_PATHS,
-  type AuthSessionResponse,
   type MiniCalibrationInput,
   type StudySessionLifecycleResponse,
 } from '@ai-tutor-pwa/shared';
@@ -18,6 +16,7 @@ import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { buildInjectHeaders, createInjectAuthSession } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -71,10 +70,7 @@ describe('study session routes', () => {
       const calibration = createMiniCalibrationInput();
 
       const response = await app.inject({
-        headers: {
-          cookie: account.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(account),
         method: 'POST',
         payload: {
           calibration,
@@ -136,10 +132,10 @@ describe('study session routes', () => {
       'reuse-b.pdf',
     );
 
-    const firstStartedSession = await startStudySession(account.cookie, firstDocument.id, {
+    const firstStartedSession = await startStudySession(account,firstDocument.id, {
       calibration: createMiniCalibrationInput(),
     });
-    const reusedSession = await startStudySession(account.cookie, secondDocument.id);
+    const reusedSession = await startStudySession(account,secondDocument.id);
 
     expect(reusedSession.learningProfile).toEqual(
       firstStartedSession.learningProfile,
@@ -177,15 +173,12 @@ describe('study session routes', () => {
       account.userId,
       'pause-resume.pdf',
     );
-    const startedSession = await startStudySession(account.cookie, document.id, {
+    const startedSession = await startStudySession(account,document.id, {
       calibration: createMiniCalibrationInput(),
     });
 
     const pauseResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       url: SESSION_PATHS.pause(startedSession.session.id),
     });
@@ -196,10 +189,7 @@ describe('study session routes', () => {
     ).toBe('paused');
 
     const resumeResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       url: SESSION_PATHS.resume(startedSession.session.id),
     });
@@ -216,15 +206,12 @@ describe('study session routes', () => {
       account.userId,
       'invalid-transition.pdf',
     );
-    const startedSession = await startStudySession(account.cookie, document.id, {
+    const startedSession = await startStudySession(account,document.id, {
       calibration: createMiniCalibrationInput(),
     });
 
     const firstPauseResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       url: SESSION_PATHS.pause(startedSession.session.id),
     });
@@ -232,10 +219,7 @@ describe('study session routes', () => {
     expect(firstPauseResponse.statusCode).toBe(200);
 
     const secondPauseResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       url: SESSION_PATHS.pause(startedSession.session.id),
     });
@@ -279,15 +263,12 @@ describe('study session routes', () => {
       owner.userId,
       'cross-user.pdf',
     );
-    const startedSession = await startStudySession(owner.cookie, document.id, {
+    const startedSession = await startStudySession(owner,document.id, {
       calibration: createMiniCalibrationInput(),
     });
 
     const pauseResponse = await app.inject({
-      headers: {
-        cookie: intruder.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(intruder),
       method: 'POST',
       url: SESSION_PATHS.pause(startedSession.session.id),
     });
@@ -298,10 +279,7 @@ describe('study session routes', () => {
     });
 
     const resumeResponse = await app.inject({
-      headers: {
-        cookie: intruder.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(intruder),
       method: 'POST',
       url: SESSION_PATHS.resume(startedSession.session.id),
     });
@@ -320,10 +298,7 @@ describe('study session routes', () => {
     );
 
     const malformedCalibrationResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       payload: {
         calibration: {
@@ -339,10 +314,7 @@ describe('study session routes', () => {
     expect(malformedCalibrationResponse.statusCode).toBe(400);
 
     const missingCalibrationResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       payload: {
         documentId: document.id,
@@ -364,10 +336,7 @@ describe('study session routes', () => {
     );
 
     const response = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       payload: {
         calibration: createMiniCalibrationInput(),
@@ -439,80 +408,30 @@ function createMiniCalibrationInput(): MiniCalibrationInput {
   };
 }
 
-function extractSessionCookie(
-  setCookieHeader: string | readonly string[] | undefined,
-): string {
-  const rawCookie = Array.isArray(setCookieHeader)
-    ? setCookieHeader.find((value) => value.startsWith('ai_tutor_pwa_session='))
-    : setCookieHeader;
-
-  if (rawCookie === undefined) {
-    throw new Error('Expected an authenticated session cookie');
-  }
-
-  const [cookie] = rawCookie.split(';');
-
-  if (cookie === undefined) {
-    throw new Error('Expected a serializable session cookie');
-  }
-
-  return cookie;
-}
-
 function parseJson<T>(body: string): T {
   return JSON.parse(body) as T;
 }
 
 async function signUpAndAuthenticate(label: string): Promise<{
   cookie: string;
+  csrfToken: string;
   userId: string;
 }> {
-  const signupResponse = await app.inject({
-    headers: {
-      origin: 'http://localhost:3000',
-    },
-    method: 'POST',
-    payload: {
-      email: createTestEmail(label),
-      password: 'password123',
-    },
-    url: AUTH_PATHS.signup,
+  return createInjectAuthSession(app, {
+    email: createTestEmail(label),
+    password: 'password123',
   });
-
-  expect(signupResponse.statusCode).toBe(201);
-
-  const cookie = extractSessionCookie(signupResponse.headers['set-cookie']);
-
-  const sessionResponse = await app.inject({
-    headers: {
-      cookie,
-    },
-    method: 'GET',
-    url: AUTH_PATHS.session,
-  });
-
-  expect(sessionResponse.statusCode).toBe(200);
-
-  const sessionBody = parseJson<AuthSessionResponse>(sessionResponse.body);
-
-  return {
-    cookie,
-    userId: sessionBody.user.id,
-  };
 }
 
 async function startStudySession(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   documentId: string,
   input: {
     calibration?: MiniCalibrationInput;
   } = {},
 ): Promise<StudySessionLifecycleResponse> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       ...(input.calibration !== undefined

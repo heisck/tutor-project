@@ -5,11 +5,9 @@ import {
   createPrismaClient,
 } from '@ai-tutor-pwa/db';
 import {
-  AUTH_PATHS,
   SESSION_PATHS,
   TUTOR_PATHS,
   tutorStreamEventSchema,
-  type AuthSessionResponse,
   type MiniCalibrationInput,
   type StudySessionLifecycleResponse,
   type StudySessionStateResponse,
@@ -32,6 +30,7 @@ import { transitionOwnedStudySession } from '../src/sessions/service.js';
 import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { buildInjectHeaders, createInjectAuthSession } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -80,7 +79,7 @@ describe('tutor runtime end-to-end verification', () => {
       const owner = await signUpAndAuthenticate('owner');
       const intruder = await signUpAndAuthenticate('intruder');
       const document = await createOwnedSessionDocument(owner.userId, 'forces.pdf');
-      const startedSession = await startStudySession(owner.cookie, document.id);
+      const startedSession = await startStudySession(owner, document.id);
 
       const initialState = await fetchSessionState(owner.cookie, startedSession.session.id);
       expect(initialState.session.status).toBe('active');
@@ -100,7 +99,7 @@ describe('tutor runtime end-to-end verification', () => {
         message: 'Study session not found',
       });
 
-      const firstStreamEvents = await fetchTutorStream(owner.cookie, startedSession.session.id);
+      const firstStreamEvents = await fetchTutorStream(owner, startedSession.session.id);
       expect(firstStreamEvents.map((event) => event.type)).toEqual([
         'control',
         'progress',
@@ -112,7 +111,7 @@ describe('tutor runtime end-to-end verification', () => {
       expect(firstMessageEvent?.type).toBe('message');
 
       const assistantResponse = await askAssistant(
-        owner.cookie,
+        owner,
         startedSession.session.id,
         'Why does force change when mass changes?',
       );
@@ -120,7 +119,7 @@ describe('tutor runtime end-to-end verification', () => {
       expect(assistantResponse.groundedEvidence.length).toBeGreaterThan(0);
 
       const firstEvaluation = await submitLearnerResponse(
-        owner.cookie,
+        owner,
         startedSession.session.id,
         startedSession.session.currentSegmentId!,
         'Force must increase when mass increases because more inertia has to be overcome for the same acceleration.',
@@ -133,10 +132,7 @@ describe('tutor runtime end-to-end verification', () => {
       );
 
       const pauseResponse = await app.inject({
-        headers: {
-          cookie: owner.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(owner),
         method: 'POST',
         payload: {
           handoff: buildPauseHandoff(stateBeforePause),
@@ -150,10 +146,7 @@ describe('tutor runtime end-to-end verification', () => {
       ).toBe('paused');
 
       const resumeResponse = await app.inject({
-        headers: {
-          cookie: owner.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(owner),
         method: 'POST',
         url: SESSION_PATHS.resume(startedSession.session.id),
       });
@@ -164,7 +157,7 @@ describe('tutor runtime end-to-end verification', () => {
       ).toBe('active');
 
       const resumedStreamEvents = await fetchTutorStream(
-        owner.cookie,
+        owner,
         startedSession.session.id,
       );
       const resumedMessageEvent = resumedStreamEvents[2];
@@ -180,7 +173,7 @@ describe('tutor runtime end-to-end verification', () => {
       }
 
       const secondEvaluation = await submitLearnerResponse(
-        owner.cookie,
+        owner,
         startedSession.session.id,
         startedSession.session.currentSegmentId!,
         'In a new example, a heavier cart needs more force than a lighter cart to speed up at the same rate.',
@@ -215,10 +208,7 @@ describe('tutor runtime end-to-end verification', () => {
       expect(completedState.summary.canComplete).toBe(true);
 
       const completedStreamResponse = await app.inject({
-        headers: {
-          cookie: owner.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(owner),
         method: 'POST',
         payload: {
           sessionId: startedSession.session.id,
@@ -236,15 +226,12 @@ describe('tutor runtime end-to-end verification', () => {
 });
 
 async function askAssistant(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   sessionId: string,
   question: string,
 ): Promise<TutorAssistantQuestionResponse> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       question,
@@ -307,26 +294,6 @@ function createMiniCalibrationInput(): MiniCalibrationInput {
   };
 }
 
-function extractSessionCookie(
-  setCookieHeader: string | readonly string[] | undefined,
-): string {
-  const rawCookie = Array.isArray(setCookieHeader)
-    ? setCookieHeader.find((value) => value.startsWith('ai_tutor_pwa_session='))
-    : setCookieHeader;
-
-  if (rawCookie === undefined) {
-    throw new Error('Expected an authenticated session cookie');
-  }
-
-  const [cookie] = rawCookie.split(';');
-
-  if (cookie === undefined) {
-    throw new Error('Expected a serializable session cookie');
-  }
-
-  return cookie;
-}
-
 async function fetchSessionState(
   cookie: string,
   sessionId: string,
@@ -345,14 +312,11 @@ async function fetchSessionState(
 }
 
 async function fetchTutorStream(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   sessionId: string,
 ): Promise<TutorStreamEvent[]> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       sessionId,
@@ -390,50 +354,21 @@ function parseTutorStreamEvents(body: string): TutorStreamEvent[] {
 
 async function signUpAndAuthenticate(label: string): Promise<{
   cookie: string;
+  csrfToken: string;
   userId: string;
 }> {
-  const signupResponse = await app.inject({
-    headers: {
-      origin: 'http://localhost:3000',
-    },
-    method: 'POST',
-    payload: {
-      email: `${testEmailPrefix}-${label}@example.com`,
-      password: 'password123',
-    },
-    url: AUTH_PATHS.signup,
+  return createInjectAuthSession(app, {
+    email: `${testEmailPrefix}-${label}@example.com`,
+    password: 'password123',
   });
-
-  expect(signupResponse.statusCode).toBe(201);
-
-  const cookie = extractSessionCookie(signupResponse.headers['set-cookie']);
-  const sessionResponse = await app.inject({
-    headers: {
-      cookie,
-    },
-    method: 'GET',
-    url: AUTH_PATHS.session,
-  });
-
-  expect(sessionResponse.statusCode).toBe(200);
-
-  const sessionBody = parseJson<AuthSessionResponse>(sessionResponse.body);
-
-  return {
-    cookie,
-    userId: sessionBody.user.id,
-  };
 }
 
 async function startStudySession(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   documentId: string,
 ): Promise<StudySessionLifecycleResponse> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       calibration: createMiniCalibrationInput(),
@@ -448,7 +383,7 @@ async function startStudySession(
 }
 
 async function submitLearnerResponse(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   sessionId: string,
   segmentId: string,
   content: string,
@@ -459,10 +394,7 @@ async function submitLearnerResponse(
   };
 }> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       content,

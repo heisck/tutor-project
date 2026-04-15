@@ -7,6 +7,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
+import { createRequireCsrfPreHandler } from '../auth/csrf.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
@@ -32,6 +33,7 @@ export async function registerFeedbackRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const requireCsrf = createRequireCsrfPreHandler(dependencies.env);
   const feedbackRateLimit = createUserRateLimitPreHandler(dependencies.redis, {
     keyPrefix:
       dependencies.rateLimitKeyPrefix ?? 'rate-limit:tutor-feedback-submit',
@@ -42,7 +44,7 @@ export async function registerFeedbackRoutes(
   app.post(
     FEEDBACK_PATHS.submit,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, feedbackRateLimit],
+      preHandler: [requireAuth, requireAllowedOrigin, requireCsrf, feedbackRateLimit],
     },
     async (request, reply): Promise<FeedbackSubmissionResponse | void> => {
       const parsedBody = feedbackSubmissionRequestSchema.safeParse(request.body);

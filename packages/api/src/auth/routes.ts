@@ -5,6 +5,7 @@ import {
 } from '@ai-tutor-pwa/db';
 import {
   AUTH_PATHS,
+  type CsrfTokenResponse,
   type AuthSessionResponse,
   type OauthAuthorizationUrlResponse,
 } from '@ai-tutor-pwa/shared';
@@ -12,6 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import {
+  clearCsrfCookie,
   clearOauthCookies,
   clearSessionCookie,
   getOauthCodeVerifierFromRequest,
@@ -21,6 +23,11 @@ import {
   setSessionCookie,
 } from './cookies.js';
 import { hashPassword, verifyPassword } from './password.js';
+import {
+  createCsrfTokenResponse,
+  createRequireCsrfPreHandler,
+  ensureCsrfToken,
+} from './csrf.js';
 import {
   buildSessionMetadata,
   createAuthSession,
@@ -73,6 +80,11 @@ export async function registerAuthRoutes(
     limit: 10,
     timeWindowSeconds: 60,
   });
+  const csrfBootstrapRateLimit = createIpRateLimitPreHandler(dependencies.redis, {
+    keyPrefix: 'rate-limit:auth:csrf',
+    limit: 60,
+    timeWindowSeconds: 60,
+  });
   const sessionLookupRateLimit = createUserRateLimitPreHandler(
     dependencies.redis,
     {
@@ -82,15 +94,25 @@ export async function registerAuthRoutes(
     },
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const requireCsrf = createRequireCsrfPreHandler(dependencies.env);
   const requireAuth = createRequireAuthPreHandler(
     dependencies.prisma,
     dependencies.env,
   );
 
+  app.get(
+    AUTH_PATHS.csrf,
+    {
+      preHandler: [requireAllowedOrigin, csrfBootstrapRateLimit],
+    },
+    async (request, reply): Promise<CsrfTokenResponse> =>
+      createCsrfTokenResponse(ensureCsrfToken(request, reply, dependencies.env)),
+  );
+
   app.post(
     AUTH_PATHS.signup,
     {
-      preHandler: [requireAllowedOrigin, authRateLimit],
+      preHandler: [requireAllowedOrigin, authRateLimit, requireCsrf],
     },
     async (request, reply): Promise<AuthSessionResponse | void> => {
       const parsedBody = signupSchema.safeParse(request.body);
@@ -147,6 +169,7 @@ export async function registerAuthRoutes(
         createdSession.token,
         createdSession.expiresAt,
       );
+      const csrfToken = ensureCsrfToken(request, reply, dependencies.env);
       request.log.info(
         {
           auditEvent: 'auth.signup',
@@ -160,7 +183,7 @@ export async function registerAuthRoutes(
         toSessionResponse({
           expiresAt: createdSession.expiresAt,
           user: createdSession.user,
-        }),
+        }, csrfToken),
       );
     },
   );
@@ -168,7 +191,7 @@ export async function registerAuthRoutes(
   app.post(
     AUTH_PATHS.signin,
     {
-      preHandler: [requireAllowedOrigin, authRateLimit],
+      preHandler: [requireAllowedOrigin, authRateLimit, requireCsrf],
     },
     async (request, reply): Promise<AuthSessionResponse | void> => {
       const parsedBody = signinSchema.safeParse(request.body);
@@ -204,6 +227,7 @@ export async function registerAuthRoutes(
       );
 
       setSessionCookie(reply, dependencies.env, session.token, session.expiresAt);
+      const csrfToken = ensureCsrfToken(request, reply, dependencies.env);
       request.log.info(
         {
           auditEvent: 'auth.signin',
@@ -216,7 +240,7 @@ export async function registerAuthRoutes(
       return toSessionResponse({
         expiresAt: session.expiresAt,
         user,
-      });
+      }, csrfToken);
     },
   );
 
@@ -303,6 +327,7 @@ export async function registerAuthRoutes(
 
       clearOauthCookies(reply, dependencies.env);
       setSessionCookie(reply, dependencies.env, session.token, session.expiresAt);
+      const csrfToken = ensureCsrfToken(request, reply, dependencies.env);
       request.log.info(
         {
           auditEvent: 'auth.signin',
@@ -315,14 +340,14 @@ export async function registerAuthRoutes(
       return toSessionResponse({
         expiresAt: session.expiresAt,
         user: googleUserResult.user,
-      });
+      }, csrfToken);
     },
   );
 
   app.post(
     AUTH_PATHS.signout,
     {
-      preHandler: [requireAllowedOrigin, authRateLimit],
+      preHandler: [requireAllowedOrigin, authRateLimit, requireCsrf],
     },
     async (request, reply): Promise<void> => {
       const sessionToken = getSessionTokenFromRequest(request);
@@ -332,6 +357,7 @@ export async function registerAuthRoutes(
       }
 
       clearSessionCookie(reply, dependencies.env);
+      clearCsrfCookie(reply, dependencies.env);
       clearOauthCookies(reply, dependencies.env);
       request.log.info(
         {
@@ -349,10 +375,12 @@ export async function registerAuthRoutes(
     {
       preHandler: [requireAuth, sessionLookupRateLimit],
     },
-    async (request): Promise<AuthSessionResponse> => ({
-      expiresAt: request.auth!.expiresAt.toISOString(),
-      user: request.auth!.user,
-    }),
+    async (request, reply): Promise<AuthSessionResponse> =>
+      ({
+        csrfToken: ensureCsrfToken(request, reply, dependencies.env),
+        expiresAt: request.auth!.expiresAt.toISOString(),
+        user: request.auth!.user,
+      }),
   );
 }
 

@@ -13,6 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
+import { createRequireCsrfPreHandler } from '../auth/csrf.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
@@ -77,6 +78,7 @@ export async function registerStudySessionRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const requireCsrf = createRequireCsrfPreHandler(dependencies.env);
   const sessionReadRateLimit = createUserRateLimitPreHandler(
     dependencies.redis,
     {
@@ -97,7 +99,12 @@ export async function registerStudySessionRoutes(
   app.post(
     SESSION_PATHS.start,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, sessionWriteRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        sessionWriteRateLimit,
+      ],
     },
     async (
       request,
@@ -194,7 +201,12 @@ export async function registerStudySessionRoutes(
   app.post(
     '/api/v1/sessions/:sessionId/pause',
     {
-      preHandler: [requireAuth, requireAllowedOrigin, sessionWriteRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        sessionWriteRateLimit,
+      ],
     },
     async (request, reply): Promise<StudySessionLifecycleResponse | void> => {
       const parsedParams = sessionParamsSchema.safeParse(request.params);
@@ -249,7 +261,12 @@ export async function registerStudySessionRoutes(
   app.post(
     '/api/v1/sessions/:sessionId/resume',
     {
-      preHandler: [requireAuth, requireAllowedOrigin, sessionWriteRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        sessionWriteRateLimit,
+      ],
     },
     async (request, reply): Promise<StudySessionLifecycleResponse | void> => {
       const parsedParams = sessionParamsSchema.safeParse(request.params);

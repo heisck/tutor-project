@@ -5,7 +5,7 @@ import {
   DocumentSectionKind,
   createPrismaClient,
 } from '@ai-tutor-pwa/db';
-import { AUTH_PATHS } from '@ai-tutor-pwa/shared';
+import { AUTH_HEADER_NAMES, AUTH_PATHS } from '@ai-tutor-pwa/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
@@ -15,6 +15,7 @@ import { transitionDocumentProcessingStatus } from '../src/documents/service.js'
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import type { UploadStorageClient } from '../src/upload/storage/r2.js';
 import { createApiTestEnv } from './test-env.js';
+import { fetchAgentCsrfToken } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -65,9 +66,9 @@ afterEach(async () => {
 
 describe('document records and processing status', () => {
   it('creates a document record after a successful upload', async () => {
-    await signUp(agent, 'document-record');
+    const { csrfToken } = await signUp(agent, 'document-record');
 
-    const finishResponse = await completeUpload(agent, 'document-record.pdf');
+    const finishResponse = await completeUpload(agent, csrfToken, 'document-record.pdf');
 
     expect(finishResponse.status).toBe(200);
     expect(finishResponse.body.document.processingStatus).toBe('queued');
@@ -83,9 +84,9 @@ describe('document records and processing status', () => {
   });
 
   it('enqueues a processing job after upload completion', async () => {
-    await signUp(agent, 'queue-enqueue');
+    const { csrfToken: csrfQueue } = await signUp(agent, 'queue-enqueue');
 
-    const finishResponse = await completeUpload(agent, 'queue-enqueue.pdf');
+    const finishResponse = await completeUpload(agent, csrfQueue, 'queue-enqueue.pdf');
 
     expect(finishResponse.status).toBe(200);
     expect(mockDocumentQueue.jobs).toHaveLength(1);
@@ -95,9 +96,9 @@ describe('document records and processing status', () => {
   });
 
   it('returns document processing status for the owner', async () => {
-    await signUp(agent, 'document-status');
+    const { csrfToken: csrfStatus } = await signUp(agent, 'document-status');
 
-    const finishResponse = await completeUpload(agent, 'document-status.pdf');
+    const finishResponse = await completeUpload(agent, csrfStatus, 'document-status.pdf');
     const documentStatusResponse = await agent.get(
       `/api/v1/documents/${finishResponse.body.document.id}/status`,
     );
@@ -121,8 +122,8 @@ describe('document records and processing status', () => {
   });
 
   it('rejects cross-user document status access', async () => {
-    await signUp(agent, 'cross-user-a');
-    const firstFinishResponse = await completeUpload(agent, 'cross-user-a.pdf');
+    const { csrfToken: csrfA } = await signUp(agent, 'cross-user-a');
+    const firstFinishResponse = await completeUpload(agent, csrfA, 'cross-user-a.pdf');
 
     const secondAgent = request.agent(app.server);
     await signUp(secondAgent, 'cross-user-b');
@@ -146,8 +147,8 @@ describe('document records and processing status', () => {
   });
 
   it('supports the foundation processing-state transitions', async () => {
-    await signUp(agent, 'transitions');
-    const finishResponse = await completeUpload(agent, 'transitions.pdf');
+    const { csrfToken: csrfTransitions } = await signUp(agent, 'transitions');
+    const finishResponse = await completeUpload(agent, csrfTransitions, 'transitions.pdf');
     const documentId = finishResponse.body.document.id as string;
 
     const queuedDocument = await transitionDocumentProcessingStatus(prismaClient, {
@@ -185,8 +186,8 @@ describe('document records and processing status', () => {
 
 describe('document structure endpoint', () => {
   it('returns persisted sections and assets for the owning user', async () => {
-    await signUp(agent, 'structure-owner');
-    const finishResponse = await completeUpload(agent, 'structure-owner.pdf');
+    const { csrfToken: csrfStructure } = await signUp(agent, 'structure-owner');
+    const finishResponse = await completeUpload(agent, csrfStructure, 'structure-owner.pdf');
     const documentId = finishResponse.body.document.id as string;
 
     // Get the user ID from the session
@@ -257,8 +258,8 @@ describe('document structure endpoint', () => {
   });
 
   it('rejects cross-user access to document structure', async () => {
-    await signUp(agent, 'structure-a');
-    const finishResponse = await completeUpload(agent, 'structure-a.pdf');
+    const { csrfToken: csrfStructureA } = await signUp(agent, 'structure-a');
+    const finishResponse = await completeUpload(agent, csrfStructureA, 'structure-a.pdf');
 
     const secondAgent = request.agent(app.server);
     await signUp(secondAgent, 'structure-b');
@@ -283,22 +284,30 @@ describe('document structure endpoint', () => {
 async function signUp(
   testAgent: ReturnType<typeof request.agent>,
   label: string,
-): Promise<void> {
-  const response = await testAgent.post(AUTH_PATHS.signup).send({
-    email: `${testPrefix}-${label}@example.com`,
-    password: 'password123',
-  });
+): Promise<{ csrfToken: string }> {
+  const csrfToken = await fetchAgentCsrfToken(testAgent);
+  const response = await testAgent
+    .post(AUTH_PATHS.signup)
+    .set('Origin', 'http://localhost:3000')
+    .set(AUTH_HEADER_NAMES.csrf, csrfToken)
+    .send({
+      email: `${testPrefix}-${label}@example.com`,
+      password: 'password123',
+    });
 
   expect(response.status).toBe(201);
+  return { csrfToken };
 }
 
 async function completeUpload(
   testAgent: ReturnType<typeof request.agent>,
+  csrfToken: string,
   fileName: string,
 ) {
   const createResponse = await testAgent
     .post('/api/v1/uploads/create')
     .set('Origin', 'http://localhost:3000')
+    .set(AUTH_HEADER_NAMES.csrf, csrfToken)
     .send({
       fileName,
       fileSizeBytes: pdfBuffer().byteLength,
@@ -310,6 +319,7 @@ async function completeUpload(
   return testAgent
     .post('/api/v1/uploads/finish')
     .set('Origin', 'http://localhost:3000')
+    .set(AUTH_HEADER_NAMES.csrf, csrfToken)
     .field('uploadId', createResponse.body.uploadId)
     .attach('file', pdfBuffer(), {
       contentType: 'application/pdf',

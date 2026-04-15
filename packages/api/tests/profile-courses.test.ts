@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { createPrismaClient } from '@ai-tutor-pwa/db';
-import { PROFILE_PATHS } from '@ai-tutor-pwa/shared';
+import { AUTH_HEADER_NAMES, AUTH_PATHS, PROFILE_PATHS } from '@ai-tutor-pwa/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
@@ -9,6 +9,7 @@ import { buildApp } from '../src/app.js';
 import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { fetchAgentCsrfToken } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -61,7 +62,7 @@ afterEach(async () => {
 
 describe('profile and course routes', () => {
   it('fetches the authenticated user profile', async () => {
-    const email = await signUp(agent, 'get-profile');
+    const { email } = await signUp(agent, 'get-profile');
 
     const response = await agent.get(PROFILE_PATHS.profile);
 
@@ -77,18 +78,22 @@ describe('profile and course routes', () => {
   });
 
   it('updates the authenticated user profile', async () => {
-    await signUp(agent, 'update-profile');
+    const { csrfToken: csrfUpdate } = await signUp(agent, 'update-profile');
 
-    const response = await agent.put(PROFILE_PATHS.profile).send({
-      department: 'Computer Science',
-      institution: {
-        country: 'Ghana',
-        name: `${testPrefix}-University`,
-        type: 'university',
-      },
-      level: 'undergraduate',
-      username: 'kelvin',
-    });
+    const response = await agent
+      .put(PROFILE_PATHS.profile)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfUpdate)
+      .send({
+        department: 'Computer Science',
+        institution: {
+          country: 'Ghana',
+          name: `${testPrefix}-University`,
+          type: 'university',
+        },
+        level: 'undergraduate',
+        username: 'kelvin',
+      });
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -104,13 +109,17 @@ describe('profile and course routes', () => {
   });
 
   it('creates a course for the authenticated user', async () => {
-    await signUp(agent, 'create-course');
+    const { csrfToken: csrfCreate } = await signUp(agent, 'create-course');
 
-    const response = await agent.post(PROFILE_PATHS.courses).send({
-      code: 'CSC101',
-      level: '100',
-      name: 'Introduction to Computing',
-    });
+    const response = await agent
+      .post(PROFILE_PATHS.courses)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfCreate)
+      .send({
+        code: 'CSC101',
+        level: '100',
+        name: 'Introduction to Computing',
+      });
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
@@ -121,17 +130,25 @@ describe('profile and course routes', () => {
   });
 
   it('lists only the authenticated user courses', async () => {
-    await signUp(agent, 'list-courses');
-    await agent.post(PROFILE_PATHS.courses).send({
-      code: 'MTH101',
-      level: '100',
-      name: 'Calculus I',
-    });
-    await agent.post(PROFILE_PATHS.courses).send({
-      code: 'PHY101',
-      level: '100',
-      name: 'Physics I',
-    });
+    const { csrfToken: csrfList } = await signUp(agent, 'list-courses');
+    await agent
+      .post(PROFILE_PATHS.courses)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfList)
+      .send({
+        code: 'MTH101',
+        level: '100',
+        name: 'Calculus I',
+      });
+    await agent
+      .post(PROFILE_PATHS.courses)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfList)
+      .send({
+        code: 'PHY101',
+        level: '100',
+        name: 'Physics I',
+      });
 
     const response = await agent.get(PROFILE_PATHS.courses);
 
@@ -143,14 +160,22 @@ describe('profile and course routes', () => {
   });
 
   it('rejects invalid profile and course payloads cleanly', async () => {
-    await signUp(agent, 'invalid-payloads');
+    const { csrfToken: csrfInvalid } = await signUp(agent, 'invalid-payloads');
 
-    const invalidProfileResponse = await agent.put(PROFILE_PATHS.profile).send({
-      level: 'middle school',
-    });
-    const invalidCourseResponse = await agent.post(PROFILE_PATHS.courses).send({
-      code: 'CSC101',
-    });
+    const invalidProfileResponse = await agent
+      .put(PROFILE_PATHS.profile)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfInvalid)
+      .send({
+        level: 'middle school',
+      });
+    const invalidCourseResponse = await agent
+      .post(PROFILE_PATHS.courses)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfInvalid)
+      .send({
+        code: 'CSC101',
+      });
 
     expect(invalidProfileResponse.status).toBe(400);
     expect(invalidCourseResponse.status).toBe(400);
@@ -169,18 +194,26 @@ describe('profile and course routes', () => {
 
   it('prevents cross-user course access', async () => {
     const firstUserAgent = agent;
-    await signUp(firstUserAgent, 'cross-user-a');
-    await firstUserAgent.post(PROFILE_PATHS.courses).send({
-      code: 'BIO101',
-      name: 'Biology I',
-    });
+    const { csrfToken: csrfCrossA } = await signUp(firstUserAgent, 'cross-user-a');
+    await firstUserAgent
+      .post(PROFILE_PATHS.courses)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfCrossA)
+      .send({
+        code: 'BIO101',
+        name: 'Biology I',
+      });
 
     const secondUserAgent = request.agent(app.server);
-    await signUp(secondUserAgent, 'cross-user-b');
-    await secondUserAgent.post(PROFILE_PATHS.courses).send({
-      code: 'CHE101',
-      name: 'Chemistry I',
-    });
+    const { csrfToken: csrfCrossB } = await signUp(secondUserAgent, 'cross-user-b');
+    await secondUserAgent
+      .post(PROFILE_PATHS.courses)
+      .set('Origin', 'http://localhost:3000')
+      .set(AUTH_HEADER_NAMES.csrf, csrfCrossB)
+      .send({
+        code: 'CHE101',
+        name: 'Chemistry I',
+      });
 
     const firstUserCoursesResponse = await firstUserAgent.get(PROFILE_PATHS.courses);
 
@@ -194,13 +227,15 @@ describe('profile and course routes', () => {
 async function signUp(
   testAgent: ReturnType<typeof request.agent>,
   label: string,
-): Promise<string> {
+): Promise<{ email: string; csrfToken: string }> {
   const email = `${testPrefix}-${label}@example.com`;
-  const response = await testAgent.post('/api/v1/auth/signup').send({
-    email,
-    password: 'password123',
-  });
+  const csrfToken = await fetchAgentCsrfToken(testAgent);
+  const response = await testAgent
+    .post(AUTH_PATHS.signup)
+    .set('Origin', 'http://localhost:3000')
+    .set(AUTH_HEADER_NAMES.csrf, csrfToken)
+    .send({ email, password: 'password123' });
 
   expect(response.status).toBe(201);
-  return email;
+  return { email, csrfToken };
 }

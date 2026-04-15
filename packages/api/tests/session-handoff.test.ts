@@ -2,9 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { createPrismaClient } from '@ai-tutor-pwa/db';
 import {
-  AUTH_PATHS,
   SESSION_PATHS,
-  type AuthSessionResponse,
   type SessionHandoffSnapshotInput,
   type StudySessionLifecycleResponse,
 } from '@ai-tutor-pwa/shared';
@@ -17,6 +15,7 @@ import { closeRedisClient, createRedisClient } from '../src/lib/redis.js';
 import { createDocumentWithKnowledgeGraph } from './fixtures/knowledge-graph.js';
 import { createApiTestEnv } from './test-env.js';
 import { createNoopDocumentProcessingQueue } from './test-doubles.js';
+import { buildInjectHeaders, createInjectAuthSession } from './auth-test-helpers.js';
 
 const baseEnv = createApiTestEnv();
 const prismaClient = createPrismaClient({
@@ -67,7 +66,7 @@ describe('session handoff routes', () => {
         account.userId,
         'restore-owner.pdf',
       );
-      const startedSession = await startStudySession(account.cookie, document.id);
+      const startedSession = await startStudySession(account,document.id);
       const teachingPlan = await getTeachingPlanForOwnedSession(prismaClient, {
         sessionId: startedSession.session.id,
         userId: account.userId,
@@ -79,10 +78,7 @@ describe('session handoff routes', () => {
       const handoff = createHandoffInput(restoredSegment);
 
       const pauseResponse = await app.inject({
-        headers: {
-          cookie: account.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(account),
         method: 'POST',
         payload: {
           handoff,
@@ -115,10 +111,7 @@ describe('session handoff routes', () => {
       });
 
       const resumeResponse = await app.inject({
-        headers: {
-          cookie: account.cookie,
-          origin: 'http://localhost:3000',
-        },
+        headers: buildInjectHeaders(account),
         method: 'POST',
         url: SESSION_PATHS.resume(startedSession.session.id),
       });
@@ -143,13 +136,10 @@ describe('session handoff routes', () => {
       account.userId,
       'corrupt-owner.pdf',
     );
-    const startedSession = await startStudySession(account.cookie, document.id);
+    const startedSession = await startStudySession(account,document.id);
 
     const pauseResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       url: SESSION_PATHS.pause(startedSession.session.id),
     });
@@ -166,10 +156,7 @@ describe('session handoff routes', () => {
     });
 
     const resumeResponse = await app.inject({
-      headers: {
-        cookie: account.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(account),
       method: 'POST',
       url: SESSION_PATHS.resume(startedSession.session.id),
     });
@@ -200,7 +187,7 @@ describe('session handoff routes', () => {
       intruder.userId,
       'mismatch-intruder.pdf',
     );
-    const startedSession = await startStudySession(owner.cookie, ownerDocument.id);
+    const startedSession = await startStudySession(owner,ownerDocument.id);
     const teachingPlan = await getTeachingPlanForOwnedSession(prismaClient, {
       sessionId: startedSession.session.id,
       userId: owner.userId,
@@ -231,10 +218,7 @@ describe('session handoff routes', () => {
     });
 
     const pauseResponse = await app.inject({
-      headers: {
-        cookie: owner.cookie,
-        origin: 'http://localhost:3000',
-      },
+      headers: buildInjectHeaders(owner),
       method: 'POST',
       payload: {
         handoff: {
@@ -324,76 +308,27 @@ function createMiniCalibrationInput() {
   } as const;
 }
 
-function extractSessionCookie(
-  setCookieHeader: string | readonly string[] | undefined,
-): string {
-  const rawCookie = Array.isArray(setCookieHeader)
-    ? setCookieHeader.find((value) => value.startsWith('ai_tutor_pwa_session='))
-    : setCookieHeader;
-
-  if (rawCookie === undefined) {
-    throw new Error('Expected an authenticated session cookie');
-  }
-
-  const [cookie] = rawCookie.split(';');
-
-  if (cookie === undefined) {
-    throw new Error('Expected a serializable session cookie');
-  }
-
-  return cookie;
-}
-
 function parseJson<T>(body: string): T {
   return JSON.parse(body) as T;
 }
 
 async function signUpAndAuthenticate(label: string): Promise<{
   cookie: string;
+  csrfToken: string;
   userId: string;
 }> {
-  const signupResponse = await app.inject({
-    headers: {
-      origin: 'http://localhost:3000',
-    },
-    method: 'POST',
-    payload: {
-      email: `${testEmailPrefix}-${label}@example.com`,
-      password: 'password123',
-    },
-    url: AUTH_PATHS.signup,
+  return createInjectAuthSession(app, {
+    email: `${testEmailPrefix}-${label}@example.com`,
+    password: 'password123',
   });
-
-  expect(signupResponse.statusCode).toBe(201);
-
-  const cookie = extractSessionCookie(signupResponse.headers['set-cookie']);
-  const sessionResponse = await app.inject({
-    headers: {
-      cookie,
-    },
-    method: 'GET',
-    url: AUTH_PATHS.session,
-  });
-
-  expect(sessionResponse.statusCode).toBe(200);
-
-  const sessionBody = parseJson<AuthSessionResponse>(sessionResponse.body);
-
-  return {
-    cookie,
-    userId: sessionBody.user.id,
-  };
 }
 
 async function startStudySession(
-  cookie: string,
+  auth: { cookie: string; csrfToken: string },
   documentId: string,
 ): Promise<StudySessionLifecycleResponse> {
   const response = await app.inject({
-    headers: {
-      cookie,
-      origin: 'http://localhost:3000',
-    },
+    headers: buildInjectHeaders(auth),
     method: 'POST',
     payload: {
       calibration: createMiniCalibrationInput(),

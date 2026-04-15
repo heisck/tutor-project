@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
+import { createRequireCsrfPreHandler } from '../auth/csrf.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
 import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
@@ -68,6 +69,7 @@ export async function registerProfileRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const requireCsrf = createRequireCsrfPreHandler(dependencies.env);
   const profileReadRateLimit = createUserRateLimitPreHandler(
     dependencies.redis,
     {
@@ -107,7 +109,12 @@ export async function registerProfileRoutes(
   app.put(
     PROFILE_PATHS.profile,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, profileWriteRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        profileWriteRateLimit,
+      ],
     },
     async (request, reply): Promise<UserProfileResponse | void> => {
       const parsedBody = updateProfileSchema.safeParse(request.body);
@@ -176,7 +183,12 @@ export async function registerProfileRoutes(
   app.post(
     PROFILE_PATHS.courses,
     {
-      preHandler: [requireAuth, requireAllowedOrigin, profileWriteRateLimit],
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        profileWriteRateLimit,
+      ],
     },
     async (request, reply): Promise<CourseResponse | void> => {
       const parsedBody = createCourseSchema.safeParse(request.body);

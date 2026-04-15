@@ -173,8 +173,10 @@ export function createRequireAuthPreHandler(
 
 export function toSessionResponse(
   session: Pick<AuthSession, 'expiresAt'> & { user: User },
+  csrfToken: string,
 ): AuthSessionResponse {
   return {
+    csrfToken,
     expiresAt: session.expiresAt.toISOString(),
     user: mapUserToAuthenticatedUser(session.user),
   };
