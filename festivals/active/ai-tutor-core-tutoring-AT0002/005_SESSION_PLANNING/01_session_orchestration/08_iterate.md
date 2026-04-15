@@ -24,7 +24,7 @@ Address all findings from testing and code review. Iterate until the sequence me
 
 ### From Testing
 
-- [x] Stabilized `@ai-tutor-pwa/web` typechecking by generating Next route types with environment loading and disabling stale incremental metadata during no-emit checks.
+- [x] Stabilized workspace typechecking by tightening no-emit checks and clearing stale incremental metadata.
 - [x] Removed a false-negative full-suite failure by giving the long-running retrieval integration test an explicit timeout budget.
 
 ### From Code Review

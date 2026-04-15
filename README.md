@@ -25,10 +25,10 @@ The product is designed to:
 
 ## Repository Map
 
-- `packages/web` - Next.js learner experience
 - `packages/api` - Fastify API, ingestion pipeline, tutor runtime, session orchestration
 - `packages/db` - Prisma schema and persistence
 - `packages/shared` - shared contracts and schemas
+- `packages/emails` - transactional email templates
 - `festivals/active/ai-tutor-pwa-AT0001` - platform foundation festival
 - `festivals/active/ai-tutor-core-tutoring-AT0002` - tutoring-core festival
 
@@ -64,14 +64,14 @@ npm run db:generate
 npm run db:push
 ```
 
-5. Start the apps.
+5. Start the services.
 
 ```bash
 npm run dev
 ```
 
-Frontend runs on `http://localhost:3000`.
 API runs on `http://localhost:4000`.
+This repo no longer includes a bundled frontend workspace.
 
 ## Verification
 

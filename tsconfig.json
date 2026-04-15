@@ -12,9 +12,6 @@
     },
     {
       "path": "./packages/emails"
-    },
-    {
-      "path": "./packages/web"
     }
   ]
 }

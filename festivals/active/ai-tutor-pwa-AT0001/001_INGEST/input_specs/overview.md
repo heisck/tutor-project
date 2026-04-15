@@ -862,7 +862,6 @@ Every source unit must be traceable forward to:
 
 ### Monorepo Structure
 - Turborepo for monorepo management
-- packages/web — Next.js frontend
 - packages/api — Node.js backend
 - packages/db — Prisma schema and migrations
 - packages/shared — shared TypeScript types and utilities

@@ -6,7 +6,7 @@ The API validates these variables at startup.
 
 | Variable | Required For | What It Is | Create It Here |
 |---|---|---|---|
-| `NODE_ENV` | API/Web | Runtime mode (`development`, `test`, `production`) | N/A (set manually) |
+| `NODE_ENV` | API | Runtime mode (`development`, `test`, `production`) | N/A (set manually) |
 | `PORT` | API | API server port (default `4000`) | N/A (set manually) |
 | `APP_VERSION` | API | App release identifier for observability | N/A (set manually) |
 | `DATABASE_URL` | API/DB | PostgreSQL connection string | https://www.postgresql.org/ |
@@ -23,7 +23,6 @@ The API validates these variables at startup.
 | `R2_BUCKET_NAME` | API | R2 bucket used for private uploads | https://dash.cloudflare.com/ |
 | `OPENAI_API_KEY` | API | OpenAI key for embeddings | https://platform.openai.com/api-keys |
 | `ANTHROPIC_API_KEY` | API | Anthropic key for extraction/analysis/vision prompts | https://console.anthropic.com/settings/keys |
-| `NEXT_PUBLIC_API_BASE_URL` | Web | Public browser URL for API | N/A (set manually) |
 
 ### Local bootstrap
 

@@ -158,7 +158,6 @@ Modular monolith first. No microservices until v1 is proven at scale.
 ### Monorepo
 - Turborepo manages pipeline
 - npm workspaces manages packages
-- packages/web — Next.js frontend
 - packages/api — Fastify backend
 - packages/db — Prisma schema and migrations
 - packages/shared — shared TypeScript types

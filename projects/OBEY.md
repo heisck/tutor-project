@@ -14,7 +14,7 @@ Git submodules and project repositories for this campaign.
 projects/
 ├── worktrees/          # Git worktrees for parallel development
 ├── api-service/        # Backend API
-├── frontend/           # Web application
+├── worker-service/     # Background jobs and queues
 └── shared-libs/        # Common utilities
 ```
 

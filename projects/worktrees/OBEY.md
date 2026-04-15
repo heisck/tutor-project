@@ -15,8 +15,8 @@ worktrees/
 ├── api-service/
 │   ├── feature-auth/
 │   └── bugfix-logging/
-└── frontend/
-    └── redesign-2024/
+└── worker-service/
+    └── queue-hardening/
 ```
 
 ## Usage

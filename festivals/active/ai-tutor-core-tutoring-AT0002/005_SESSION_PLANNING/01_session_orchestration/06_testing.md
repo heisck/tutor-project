@@ -38,7 +38,7 @@ Sequence-specific verification reruns:
 ```bash
 npm --workspace @ai-tutor-pwa/api run test -- session-handoff.test.ts
 npm --workspace @ai-tutor-pwa/api run test -- retrieval.test.ts
-npm --workspace @ai-tutor-pwa/web run typecheck
+npm --workspace @ai-tutor-pwa/shared run typecheck
 ```
 
 ## Test Categories

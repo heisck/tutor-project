@@ -28,7 +28,5 @@ The tutoring runtime is only considered healthy when all of the following remain
 
 - `packages/api/tests/tutor-stream.test.ts`
 - `packages/api/tests/tutor-runtime-e2e.test.ts`
-- `packages/web/src/tutor-stream.test.ts`
-- `packages/web/src/tutor-session-reconnect.test.tsx`
 
 If any future change breaks one of these expectations, it should be treated as a runtime regression for AT0002.
