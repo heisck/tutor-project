@@ -277,6 +277,16 @@ export async function registerUploadRoutes(
           });
         }
 
+        request.log.info(
+          {
+            auditEvent: 'upload.finish',
+            documentId: documentRecord.id,
+            uploadId,
+            userId: request.auth!.userId,
+          },
+          'Audit event',
+        );
+
         return {
           document: {
             id: completedSession.documentId ?? documentRecord.id,

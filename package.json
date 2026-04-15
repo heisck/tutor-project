@@ -7,25 +7,28 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "dotenv -e .env.local -- turbo run build",
+    "build": "turbo run build",
     "dev": "dotenv -e .env.local -- turbo run dev --parallel",
     "postinstall": "npm run db:generate",
     "lint": "turbo run lint",
-    "typecheck": "dotenv -e .env.local -- turbo run typecheck",
-    "test": "dotenv -e .env.local -- turbo run test",
-    "test:coverage": "dotenv -e .env.local -- turbo run test:coverage",
+    "typecheck": "turbo run typecheck",
+    "test": "npm run db:push:test && dotenv -e .env.test -- turbo run test",
+    "test:coverage": "npm run db:push:test && dotenv -e .env.test -- turbo run test:coverage",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "docker:up": "docker compose up -d postgres redis",
     "docker:down": "docker compose down --remove-orphans",
     "db:generate": "npm --workspace @ai-tutor-pwa/db run prisma:generate",
-    "db:push": "dotenv -e .env.local -- npm --workspace @ai-tutor-pwa/db run prisma:push"
+    "db:push": "dotenv -e .env.local -- npm --workspace @ai-tutor-pwa/db run prisma:push",
+    "db:push:test": "dotenv -e .env.test -- npm --workspace @ai-tutor-pwa/db run prisma:push",
+    "verify:backend": "npm run lint && npm run typecheck && npm run build && npm run test && npm run test:coverage"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.4",
     "dotenv-cli": "^11.0.0",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",

@@ -1,3 +1,5 @@
+import { writeStructuredLog } from './structured-log.js';
+
 export interface AiCallConfig {
   label: string;
   maxTokens: number;
@@ -231,18 +233,29 @@ function logAiCall<T>(
   result: AiCallResult<T>,
   attempt: number,
 ): void {
-  const prefix = `[AI_RUNTIME] ${config.label} | model=${config.model} | attempt=${attempt} | ${result.latencyMs}ms`;
-
   if (result.ok) {
-    const usageStr = formatUsage(result.usage);
-    const finish = result.finishReason ?? 'n/a';
-    console.log(`${prefix} | ${usageStr} | finish=${finish} | OK`);
+    writeStructuredLog('info', 'ai_runtime_call', {
+      attempt,
+      finishReason: result.finishReason ?? 'n/a',
+      label: config.label,
+      latencyMs: result.latencyMs,
+      maxTokens: config.maxTokens,
+      model: config.model,
+      outcome: 'ok',
+      usage: formatUsage(result.usage),
+    });
   } else {
-    const retry =
-      result.retryAfterMs !== null ? ` retry-after=${result.retryAfterMs}ms` : '';
-    console.warn(
-      `${prefix} | reason=${result.reason}${retry} | FAIL: ${result.message}`,
-    );
+    writeStructuredLog('warn', 'ai_runtime_call', {
+      attempt,
+      label: config.label,
+      latencyMs: result.latencyMs,
+      maxTokens: config.maxTokens,
+      message: result.message,
+      model: config.model,
+      outcome: 'failed',
+      reason: result.reason,
+      retryAfterMs: result.retryAfterMs,
+    });
   }
 }
 

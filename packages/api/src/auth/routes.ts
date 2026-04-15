@@ -36,7 +36,10 @@ import {
 } from './oauth/google.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
-import { createIpRateLimitPreHandler } from '../lib/rate-limit.js';
+import {
+  createIpRateLimitPreHandler,
+  createUserRateLimitPreHandler,
+} from '../lib/rate-limit.js';
 import type { RedisClient } from '../lib/redis.js';
 
 const signupSchema = z.object({
@@ -70,6 +73,14 @@ export async function registerAuthRoutes(
     limit: 10,
     timeWindowSeconds: 60,
   });
+  const sessionLookupRateLimit = createUserRateLimitPreHandler(
+    dependencies.redis,
+    {
+      keyPrefix: 'rate-limit:auth:session',
+      limit: 120,
+      timeWindowSeconds: 60,
+    },
+  );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
   const requireAuth = createRequireAuthPreHandler(
     dependencies.prisma,
@@ -136,6 +147,14 @@ export async function registerAuthRoutes(
         createdSession.token,
         createdSession.expiresAt,
       );
+      request.log.info(
+        {
+          auditEvent: 'auth.signup',
+          authProvider: 'email',
+          userId: createdSession.user.id,
+        },
+        'Audit event',
+      );
 
       return reply.status(201).send(
         toSessionResponse({
@@ -185,6 +204,14 @@ export async function registerAuthRoutes(
       );
 
       setSessionCookie(reply, dependencies.env, session.token, session.expiresAt);
+      request.log.info(
+        {
+          auditEvent: 'auth.signin',
+          authProvider: 'email',
+          userId: user.id,
+        },
+        'Audit event',
+      );
 
       return toSessionResponse({
         expiresAt: session.expiresAt,
@@ -276,6 +303,14 @@ export async function registerAuthRoutes(
 
       clearOauthCookies(reply, dependencies.env);
       setSessionCookie(reply, dependencies.env, session.token, session.expiresAt);
+      request.log.info(
+        {
+          auditEvent: 'auth.signin',
+          authProvider: 'google',
+          userId: googleUserResult.user.id,
+        },
+        'Audit event',
+      );
 
       return toSessionResponse({
         expiresAt: session.expiresAt,
@@ -298,6 +333,13 @@ export async function registerAuthRoutes(
 
       clearSessionCookie(reply, dependencies.env);
       clearOauthCookies(reply, dependencies.env);
+      request.log.info(
+        {
+          auditEvent: 'auth.signout',
+          hadSessionToken: sessionToken !== null,
+        },
+        'Audit event',
+      );
       reply.status(204).send();
     },
   );
@@ -305,7 +347,7 @@ export async function registerAuthRoutes(
   app.get(
     AUTH_PATHS.session,
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, sessionLookupRateLimit],
     },
     async (request): Promise<AuthSessionResponse> => ({
       expiresAt: request.auth!.expiresAt.toISOString(),

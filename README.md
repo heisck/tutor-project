@@ -76,7 +76,13 @@ This repo no longer includes a bundled frontend workspace.
 ## Verification
 
 ```bash
+npm run db:push:test
 npm run lint
 npm run typecheck
 npm run test
+npm run test:coverage
 ```
+
+`npm run test` and `npm run test:coverage` use the committed Docker-backed `.env.test` file instead of a developer-specific `.env.local`.
+
+No seeded login accounts are bundled with the backend. Create users through the real `POST /api/v1/auth/signup` flow during local testing.

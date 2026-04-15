@@ -12,6 +12,8 @@ import { z } from 'zod';
 import { createRequireAuthPreHandler } from '../auth/session.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
+import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
+import type { RedisClient } from '../lib/redis.js';
 
 const academicLevelSchema = z.enum(ACADEMIC_LEVELS);
 
@@ -48,6 +50,7 @@ const createCourseSchema = z
 interface ProfileRouteDependencies {
   env: ApiEnv;
   prisma: DatabaseClient;
+  redis: RedisClient;
 }
 
 type ProfileRecord = Prisma.UserGetPayload<{
@@ -65,11 +68,27 @@ export async function registerProfileRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const profileReadRateLimit = createUserRateLimitPreHandler(
+    dependencies.redis,
+    {
+      keyPrefix: 'rate-limit:profile:read',
+      limit: 120,
+      timeWindowSeconds: 60,
+    },
+  );
+  const profileWriteRateLimit = createUserRateLimitPreHandler(
+    dependencies.redis,
+    {
+      keyPrefix: 'rate-limit:profile:write',
+      limit: 60,
+      timeWindowSeconds: 60,
+    },
+  );
 
   app.get(
     PROFILE_PATHS.profile,
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, profileReadRateLimit],
     },
     async (request): Promise<UserProfileResponse> => {
       const profile = await dependencies.prisma.user.findUniqueOrThrow({
@@ -88,7 +107,7 @@ export async function registerProfileRoutes(
   app.put(
     PROFILE_PATHS.profile,
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, profileWriteRateLimit],
     },
     async (request, reply): Promise<UserProfileResponse | void> => {
       const parsedBody = updateProfileSchema.safeParse(request.body);
@@ -142,6 +161,13 @@ export async function registerProfileRoutes(
           id: request.auth!.userId,
         },
       });
+      request.log.info(
+        {
+          auditEvent: 'profile.update',
+          userId: request.auth!.userId,
+        },
+        'Audit event',
+      );
 
       return mapProfileResponse(updatedProfile);
     },
@@ -150,7 +176,7 @@ export async function registerProfileRoutes(
   app.post(
     PROFILE_PATHS.courses,
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, profileWriteRateLimit],
     },
     async (request, reply): Promise<CourseResponse | void> => {
       const parsedBody = createCourseSchema.safeParse(request.body);
@@ -185,7 +211,7 @@ export async function registerProfileRoutes(
   app.get(
     PROFILE_PATHS.courses,
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, profileReadRateLimit],
     },
     async (request): Promise<CourseResponse[]> => {
       const courses = await dependencies.prisma.course.findMany({

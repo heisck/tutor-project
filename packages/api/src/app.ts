@@ -25,6 +25,7 @@ import {
 import { registerHealthRoutes } from './routes/health.js';
 import { registerStudySessionRoutes } from './sessions/routes.js';
 import { registerTutorRoutes } from './tutor/routes.js';
+import { registerSecurityHeaders } from './lib/security-headers.js';
 
 export interface BuildAppOptions {
   documentProcessingQueue?: DocumentProcessingQueue;
@@ -50,6 +51,8 @@ export async function buildApp(
       level: env.NODE_ENV === 'development' ? 'info' : 'warn',
     },
   });
+
+  registerSecurityHeaders(app, env);
 
   await app.register(cors, {
     credentials: true,
@@ -89,6 +92,7 @@ export async function buildApp(
   await registerProfileRoutes(app, {
     env,
     prisma: prismaClient,
+    redis: redisClient,
   });
 
   await registerUploadRoutes(app, {
@@ -108,6 +112,7 @@ export async function buildApp(
   await registerStudySessionRoutes(app, {
     env,
     prisma: prismaClient,
+    redis: redisClient,
   });
 
   await registerTutorRoutes(app, {

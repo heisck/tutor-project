@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { createRequireAuthPreHandler } from '../auth/session.js';
 import type { ApiEnv } from '../config/env.js';
+import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
 import { getUploadSession } from '../upload/session-store.js';
 import { getOwnedDocumentStatus } from './service.js';
 import type { RedisClient } from '../lib/redis.js';
@@ -26,11 +27,19 @@ export async function registerDocumentRoutes(
     dependencies.prisma,
     dependencies.env,
   );
+  const documentReadRateLimit = createUserRateLimitPreHandler(
+    dependencies.redis,
+    {
+      keyPrefix: 'rate-limit:documents:read',
+      limit: 120,
+      timeWindowSeconds: 60,
+    },
+  );
 
   app.get(
     '/api/v1/uploads/:uploadId/status',
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, documentReadRateLimit],
     },
     async (request, reply): Promise<UploadStatusResponse | void> => {
       const uploadId = (request.params as { uploadId: string }).uploadId;
@@ -55,7 +64,7 @@ export async function registerDocumentRoutes(
   app.get(
     '/api/v1/documents/:documentId/status',
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, documentReadRateLimit],
     },
     async (request, reply): Promise<DocumentStatusResponse | void> => {
       const documentId = (request.params as { documentId: string }).documentId;
@@ -77,7 +86,7 @@ export async function registerDocumentRoutes(
   app.get(
     '/api/v1/documents/:documentId/structure',
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, documentReadRateLimit],
     },
     async (request, reply): Promise<DocumentStructureResponse | void> => {
       const documentId = (request.params as { documentId: string }).documentId;

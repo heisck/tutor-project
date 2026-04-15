@@ -15,6 +15,8 @@ import { z } from 'zod';
 import { createRequireAuthPreHandler } from '../auth/session.js';
 import type { ApiEnv } from '../config/env.js';
 import { createAllowedOriginPreHandler } from '../lib/request-origin.js';
+import { createUserRateLimitPreHandler } from '../lib/rate-limit.js';
+import type { RedisClient } from '../lib/redis.js';
 import {
   pauseOwnedStudySessionWithHandoff,
   restoreOwnedStudySessionFromHandoff,
@@ -63,6 +65,7 @@ const pauseStudySessionSchema = z
 interface StudySessionRouteDependencies {
   env: ApiEnv;
   prisma: DatabaseClient;
+  redis: RedisClient;
 }
 
 export async function registerStudySessionRoutes(
@@ -74,11 +77,27 @@ export async function registerStudySessionRoutes(
     dependencies.env,
   );
   const requireAllowedOrigin = createAllowedOriginPreHandler(dependencies.env);
+  const sessionReadRateLimit = createUserRateLimitPreHandler(
+    dependencies.redis,
+    {
+      keyPrefix: 'rate-limit:sessions:read',
+      limit: 120,
+      timeWindowSeconds: 60,
+    },
+  );
+  const sessionWriteRateLimit = createUserRateLimitPreHandler(
+    dependencies.redis,
+    {
+      keyPrefix: 'rate-limit:sessions:write',
+      limit: 60,
+      timeWindowSeconds: 60,
+    },
+  );
 
   app.post(
     SESSION_PATHS.start,
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, sessionWriteRateLimit],
     },
     async (
       request,
@@ -133,7 +152,7 @@ export async function registerStudySessionRoutes(
   app.get(
     SESSION_PATHS.state(':sessionId'),
     {
-      preHandler: [requireAuth],
+      preHandler: [requireAuth, sessionReadRateLimit],
     },
     async (request, reply): Promise<StudySessionStateResponse | void> => {
       const parsedParams = sessionParamsSchema.safeParse(request.params);
@@ -175,7 +194,7 @@ export async function registerStudySessionRoutes(
   app.post(
     '/api/v1/sessions/:sessionId/pause',
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, sessionWriteRateLimit],
     },
     async (request, reply): Promise<StudySessionLifecycleResponse | void> => {
       const parsedParams = sessionParamsSchema.safeParse(request.params);
@@ -230,7 +249,7 @@ export async function registerStudySessionRoutes(
   app.post(
     '/api/v1/sessions/:sessionId/resume',
     {
-      preHandler: [requireAuth, requireAllowedOrigin],
+      preHandler: [requireAuth, requireAllowedOrigin, sessionWriteRateLimit],
     },
     async (request, reply): Promise<StudySessionLifecycleResponse | void> => {
       const parsedParams = sessionParamsSchema.safeParse(request.params);

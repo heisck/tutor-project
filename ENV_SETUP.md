@@ -36,6 +36,16 @@ R2_SECRET_ACCESS_KEY=your_r2_secret_key
 R2_BUCKET_NAME=ai-tutor-pwa-private
 ```
 
+## Test Environment
+
+Backend tests use the committed `.env.test` file so they always point at the local Docker Postgres and Redis services:
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public
+REDIS_URL=redis://localhost:6379
+NODE_ENV=test
+```
+
 ## Secret Generation
 
 Use either of these:
@@ -97,18 +107,7 @@ Database check:
 psql $DATABASE_URL -c "SELECT 1"
 ```
 
-Sample signup request:
-
-```http
-POST http://localhost:4000/api/v1/auth/signup
-Content-Type: application/json
-
-{
-  "email": "test@example.com",
-  "password": "Test123!@#",
-  "name": "Test User"
-}
-```
+There are no seeded or placeholder login accounts in the backend. Use the real signup endpoint to create a fresh local account when you need one.
 
 ## Troubleshooting
 

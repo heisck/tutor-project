@@ -12,16 +12,7 @@
     "ignoreDeprecations": "6.0",
     "types": [
       "node"
-    ],
-    "baseUrl": ".",
-    "paths": {
-      "@ai-tutor-pwa/shared": [
-        "../shared/src/index.ts"
-      ],
-      "@ai-tutor-pwa/db": [
-        "../db/src/index.ts"
-      ]
-    }
+    ]
   },
   "references": [
     {

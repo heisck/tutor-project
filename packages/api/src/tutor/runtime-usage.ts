@@ -5,6 +5,7 @@ import type {
 } from '@ai-tutor-pwa/shared';
 
 import { countTokens } from '../knowledge/chunking.js';
+import { writeStructuredLog } from '../lib/structured-log.js';
 
 export type TutorRuntimeRoute =
   | 'assistant_question'
@@ -45,9 +46,16 @@ export async function recordTutorRuntimeUsage(
     },
   });
 
-  console.info(
-    `[AI_USAGE] route=${input.route} user=${input.userId} session=${input.sessionId} document=${input.documentId} outcome=${input.outcome} calls=${providerCallCount} in=${inputTokenCount} out=${outputTokenCount}`,
-  );
+  writeStructuredLog('info', 'tutor_runtime_usage', {
+    documentId: input.documentId,
+    inputTokenCount,
+    outcome: input.outcome,
+    outputTokenCount,
+    providerCallCount,
+    route: input.route,
+    sessionId: input.sessionId,
+    userId: input.userId,
+  });
 }
 
 export function collectTutorStreamOutputText(

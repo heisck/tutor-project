@@ -5,6 +5,7 @@ import {
   executeAiCall,
   type AiCallFnResult,
 } from '../src/lib/ai-runtime.js';
+import * as structuredLog from '../src/lib/structured-log.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -219,8 +220,9 @@ describe('executeAiCall', () => {
   });
 
   it('logging output includes label, model, latency, token usage, and outcome', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const structuredLogSpy = vi
+      .spyOn(structuredLog, 'writeStructuredLog')
+      .mockImplementation(() => {});
 
     const successResult = await executeAiCall(
       'conceptAnalysis',
@@ -233,19 +235,30 @@ describe('executeAiCall', () => {
 
     expect(successResult.ok).toBe(true);
     expect(failureResult.ok).toBe(false);
-    expect(logSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(logSpy.mock.calls[0]?.[0]).toContain('[AI_RUNTIME] concept-analysis');
-    expect(logSpy.mock.calls[0]?.[0]).toContain(
-      `model=${AI_CALL_CONFIGS.conceptAnalysis.model}`,
+    expect(structuredLogSpy).toHaveBeenCalledTimes(2);
+    expect(structuredLogSpy).toHaveBeenNthCalledWith(
+      1,
+      'info',
+      'ai_runtime_call',
+      expect.objectContaining({
+        finishReason: 'end_turn',
+        label: 'concept-analysis',
+        model: AI_CALL_CONFIGS.conceptAnalysis.model,
+        outcome: 'ok',
+        usage: 'in=5 out=10',
+      }),
     );
-    expect(logSpy.mock.calls[0]?.[0]).toContain('finish=end_turn');
-    expect(logSpy.mock.calls[0]?.[0]).toContain('OK');
-    expect(warnSpy.mock.calls[0]?.[0]).toContain('[AI_RUNTIME] atu-extraction');
-    expect(warnSpy.mock.calls[0]?.[0]).toContain(
-      `model=${AI_CALL_CONFIGS.atuExtraction.model}`,
+    expect(structuredLogSpy).toHaveBeenNthCalledWith(
+      2,
+      'warn',
+      'ai_runtime_call',
+      expect.objectContaining({
+        label: 'atu-extraction',
+        model: AI_CALL_CONFIGS.atuExtraction.model,
+        outcome: 'failed',
+        reason: 'provider_error',
+      }),
     );
-    expect(warnSpy.mock.calls[0]?.[0]).toContain('reason=provider_error');
   });
 
   it('cleans up abort listeners after a successful call', async () => {
