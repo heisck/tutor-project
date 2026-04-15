@@ -2,9 +2,11 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 export default function SignupPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -14,232 +16,152 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
     if (errors[name]) {
       setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
+        const next = { ...prev };
+        delete next[name];
+        return next;
       });
     }
   };
 
   const validate = () => {
-    const newErrors: Record<string, string> = {};
+    const nextErrors: Record<string, string> = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
+      nextErrors.name = 'Full name is required.';
     }
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      nextErrors.email = 'Email is required.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
+      nextErrors.email = 'Use a valid email address.';
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+    if (formData.password.length < 8) {
+      nextErrors.password = 'Use at least 8 characters.';
     }
 
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      nextErrors.confirmPassword = 'Passwords must match.';
     }
 
-    return newErrors;
+    return nextErrors;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextErrors = validate();
 
-    const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
 
     setLoading(true);
-    try {
-      // TODO: Implement actual signup logic with backend
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Signup with:', formData);
-      // Redirect to dashboard after successful signup
-      window.location.href = '/dashboard';
-    } catch (error) {
-      console.error('Signup error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.3 },
-    },
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    router.push('/dashboard');
   };
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="w-full max-w-md"
-    >
-      <div className="space-y-8">
-        <motion.div variants={itemVariants} className="space-y-2 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            Create Account
-          </h1>
-          <p className="text-muted-foreground">
-            Start your learning journey today
-          </p>
-        </motion.div>
+    <div className="space-y-8">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Create account</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Get started in minutes</h1>
+        <p className="text-sm text-muted-foreground">Build your personalized AI tutoring workspace.</p>
+      </motion.div>
 
-        <motion.form
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          onSubmit={handleSubmit}
-          className="space-y-6"
-        >
-          {/* Name Input */}
-          <motion.div variants={itemVariants} className="space-y-2">
-            <label
-              htmlFor="name"
-              className="text-sm font-medium text-foreground block"
-            >
-              Full Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="John Doe"
-              className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-            />
-            {errors.name && (
-              <p className="text-sm text-red-500">{errors.name}</p>
-            )}
-          </motion.div>
+      <motion.form
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        onSubmit={handleSubmit}
+        className="space-y-5"
+      >
+        <div className="space-y-2">
+          <label htmlFor="name" className="text-sm font-medium">
+            Full name
+          </label>
+          <input
+            id="name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            placeholder="Jordan Diaz"
+            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+          />
+          {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+        </div>
 
-          {/* Email Input */}
-          <motion.div variants={itemVariants} className="space-y-2">
-            <label
-              htmlFor="email"
-              className="text-sm font-medium text-foreground block"
-            >
-              Email Address
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="you@example.com"
-              className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-            />
-            {errors.email && (
-              <p className="text-sm text-red-500">{errors.email}</p>
-            )}
-          </motion.div>
+        <div className="space-y-2">
+          <label htmlFor="email" className="text-sm font-medium">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="you@company.com"
+            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+          />
+          {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+        </div>
 
-          {/* Password Input */}
-          <motion.div variants={itemVariants} className="space-y-2">
-            <label
-              htmlFor="password"
-              className="text-sm font-medium text-foreground block"
-            >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm font-medium">
               Password
             </label>
             <input
-              type="password"
               id="password"
               name="password"
+              type="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+              placeholder="At least 8 chars"
+              className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
-            {errors.password && (
-              <p className="text-sm text-red-500">{errors.password}</p>
-            )}
-          </motion.div>
+            {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
+          </div>
 
-          {/* Confirm Password Input */}
-          <motion.div variants={itemVariants} className="space-y-2">
-            <label
-              htmlFor="confirmPassword"
-              className="text-sm font-medium text-foreground block"
-            >
-              Confirm Password
+          <div className="space-y-2">
+            <label htmlFor="confirmPassword" className="text-sm font-medium">
+              Confirm password
             </label>
             <input
-              type="password"
               id="confirmPassword"
               name="confirmPassword"
+              type="password"
               value={formData.confirmPassword}
               onChange={handleChange}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+              placeholder="Repeat password"
+              className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
-            {errors.confirmPassword && (
-              <p className="text-sm text-red-500">{errors.confirmPassword}</p>
-            )}
-          </motion.div>
+            {errors.confirmPassword && <p className="text-xs text-red-500">{errors.confirmPassword}</p>}
+          </div>
+        </div>
 
-          {/* Submit Button */}
-          <motion.button
-            variants={itemVariants}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
-          >
-            {loading ? 'Creating Account...' : 'Sign Up'}
-          </motion.button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+        >
+          {loading ? 'Creating account…' : 'Create account'}
+        </button>
 
-          {/* Divider */}
-          <motion.div variants={itemVariants} className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-background text-muted-foreground">
-                Already have an account?
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Login Link */}
-          <motion.div variants={itemVariants} className="text-center">
-            <Link
-              href="/auth/login"
-              className="text-primary hover:underline font-medium transition-colors"
-            >
-              Sign In
-            </Link>
-          </motion.div>
-        </motion.form>
-      </div>
-    </motion.div>
+        <p className="text-center text-sm text-muted-foreground">
+          Already have an account?{' '}
+          <Link href="/auth/login" className="font-medium text-primary hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </motion.form>
+    </div>
   );
 }

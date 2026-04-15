@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   description:
     'Personalized AI tutoring platform. Upload your materials and get intelligent explanations, practice questions, and adaptive learning paths.',
   keywords: ['tutoring', 'AI', 'learning', 'education', 'adaptive'],
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=5',
   icons: {
     icon: '/favicon.ico',
   },

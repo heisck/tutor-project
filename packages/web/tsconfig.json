@@ -15,18 +15,34 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["./app/components/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/hooks/*": ["./lib/hooks/*"],
-      "@/contexts/*": ["./lib/contexts/*"],
-      "@/types/*": ["./lib/types/*"]
+      "@/*": [
+        "./*"
+      ],
+      "@/components/*": [
+        "./app/components/*"
+      ],
+      "@/lib/*": [
+        "./lib/*"
+      ],
+      "@/hooks/*": [
+        "./lib/hooks/*"
+      ],
+      "@/contexts/*": [
+        "./lib/contexts/*"
+      ],
+      "@/types/*": [
+        "./lib/types/*"
+      ],
+      "@ai-tutor-pwa/shared": [
+        "../shared/src/index.ts"
+      ]
     },
     "plugins": [
       {
         "name": "next"
       }
-    ]
+    ],
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "next-env.d.ts",

@@ -2,246 +2,125 @@
 
 import { motion } from 'framer-motion';
 
+const stats = [
+  { label: 'Current streak', value: '12 days', helper: '+2 from last week' },
+  { label: 'Best streak', value: '28 days', helper: 'Personal record' },
+  { label: 'Weekly focus time', value: '10h 42m', helper: '+14% vs previous week' },
+  { label: 'Consistency score', value: '87 / 100', helper: 'Top 15% this month' },
+];
+
+const activityDays = [
+  1, 1, 0, 1, 1, 1, 0,
+  1, 1, 1, 1, 0, 1, 1,
+  1, 0, 1, 1, 1, 1, 0,
+  1, 1, 1, 0, 1, 1, 1,
+];
+
+const weeklyBreakdown = [
+  { day: 'Mon', minutes: 72 },
+  { day: 'Tue', minutes: 56 },
+  { day: 'Wed', minutes: 94 },
+  { day: 'Thu', minutes: 63 },
+  { day: 'Fri', minutes: 81 },
+  { day: 'Sat', minutes: 48 },
+  { day: 'Sun', minutes: 62 },
+];
+
+const milestones = [
+  { title: '7-day focus loop', status: 'Completed', progress: 100 },
+  { title: '14-day consistency milestone', status: 'Completed', progress: 100 },
+  { title: '30-day mastery streak', status: 'In progress', progress: 40 },
+  { title: '90-day discipline target', status: 'In progress', progress: 14 },
+];
+
 export default function StreaksPage() {
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  };
-
-  // Mock data for the last 30 days
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const weeks = 4;
-
-  const streakData = Array.from({ length: weeks * 7 }, (_, i) => ({
-    day: i + 1,
-    active: Math.random() > 0.3,
-    minutes: Math.floor(Math.random() * 120) + 10,
-  }));
-
-  const stats = [
-    {
-      label: 'Current Streak',
-      value: '12 Days',
-      icon: '🔥',
-      change: '+2 from last week',
-    },
-    {
-      label: 'Best Streak',
-      value: '28 Days',
-      icon: '🏆',
-      change: 'All time',
-    },
-    {
-      label: 'Total Hours',
-      value: '45.5h',
-      icon: '⏱️',
-      change: '+8.5h this month',
-    },
-    {
-      label: 'Average per Day',
-      value: '1h 32m',
-      icon: '📊',
-      change: 'Up 15 mins from last month',
-    },
-  ];
-
-  const milestones = [
-    { days: 7, title: '7-Day Learner', completed: true },
-    { days: 14, title: '14-Day Warrior', completed: true },
-    { days: 30, title: 'Monthly Master', completed: false, progress: 40 },
-    { days: 100, title: 'Century Scholar', completed: false, progress: 12 },
-  ];
-
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-8"
-    >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="space-y-2">
-        <h1 className="text-4xl font-bold text-foreground">Learning Streaks & Analytics</h1>
-        <p className="text-muted-foreground">Track your learning consistency and achievements</p>
-      </motion.div>
+    <div className="space-y-8">
+      <section className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Streak intelligence</p>
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Consistency and momentum</h2>
+        <p className="text-sm text-muted-foreground sm:text-base">
+          Track your practice cadence, celebrate streak wins, and identify low-activity days early.
+        </p>
+      </section>
 
-      {/* Stats Grid */}
-      <motion.div
-        variants={containerVariants}
-        className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
-      >
-        {stats.map((stat, idx) => (
-          <motion.div
-            key={idx}
-            variants={itemVariants}
-            className="p-6 rounded-2xl border border-border bg-muted/30 hover:border-primary transition-all"
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat, index) => (
+          <motion.article
+            key={stat.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, delay: index * 0.05 }}
+            className="rounded-2xl border border-border/70 bg-background p-5 shadow-sm"
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="text-3xl">{stat.icon}</div>
-            </div>
-            <p className="text-muted-foreground text-sm font-medium">{stat.label}</p>
-            <p className="text-3xl font-bold text-foreground mt-2">{stat.value}</p>
-            <p className="text-xs text-muted-foreground mt-2">{stat.change}</p>
-          </motion.div>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">{stat.label}</p>
+            <p className="mt-3 text-2xl font-semibold tracking-tight">{stat.value}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{stat.helper}</p>
+          </motion.article>
         ))}
-      </motion.div>
+      </section>
 
-      {/* Activity Calendar */}
-      <motion.div variants={itemVariants} className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-foreground">Last 30 Days</h2>
-          <p className="text-muted-foreground">Your learning activity overview</p>
-        </div>
+      <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+        <article className="rounded-2xl border border-border/70 bg-background p-6 shadow-sm">
+          <h3 className="text-lg font-semibold">Last 4 weeks of activity</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Each square represents one day with at least one completed learning activity.</p>
+          <div className="mt-5 grid grid-cols-7 gap-2">
+            {activityDays.map((active, index) => (
+              <div
+                key={`${index}-${active}`}
+                className={`aspect-square rounded-md border ${
+                  active ? 'border-primary/25 bg-primary/20' : 'border-border/70 bg-muted/25'
+                }`}
+              />
+            ))}
+          </div>
+        </article>
 
-        <div className="p-6 rounded-2xl border border-border bg-muted/30">
-          <div className="space-y-4">
-            {Array.from({ length: weeks }).map((_, weekIdx) => (
-              <div key={weekIdx}>
-                <div className="flex gap-2 mb-2">
-                  {weekDays.map((day, dayIdx) => (
-                    <div key={dayIdx} className="text-xs font-semibold text-muted-foreground text-center flex-1">
-                      {dayIdx === 0 || dayIdx === 6 ? day : ''}
-                    </div>
-                  ))}
+        <article className="rounded-2xl border border-border/70 bg-background p-6 shadow-sm">
+          <h3 className="text-lg font-semibold">Weekly minutes</h3>
+          <div className="mt-4 space-y-3">
+            {weeklyBreakdown.map((item, idx) => (
+              <div key={item.day} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">{item.day}</span>
+                  <span className="text-muted-foreground">{item.minutes} min</span>
                 </div>
-                <div className="flex gap-2">
-                  {Array.from({ length: 7 }).map((_, dayIdx) => {
-                    const dataIdx = weekIdx * 7 + dayIdx;
-                    const data = streakData[dataIdx];
-                    return (
-                      <motion.div
-                        key={dayIdx}
-                        whileHover={{ scale: 1.1 }}
-                        className={`flex-1 aspect-square rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
-                          data.active
-                            ? 'bg-gradient-to-br from-primary to-secondary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                        title={`${data.minutes} minutes`}
-                      >
-                        {data.active ? '✓' : ''}
-                      </motion.div>
-                    );
-                  })}
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(item.minutes / 100) * 100}%` }}
+                    transition={{ duration: 0.4, delay: 0.1 + idx * 0.04 }}
+                    className="h-full rounded-full bg-primary"
+                  />
                 </div>
               </div>
             ))}
           </div>
+        </article>
+      </section>
 
-          <div className="mt-6 pt-4 border-t border-border text-xs text-muted-foreground">
-            <p>Each square = one day. Click to see details.</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Milestones */}
-      <motion.div variants={itemVariants} className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-foreground">Achievements</h2>
-          <p className="text-muted-foreground">Keep building your streak to unlock more</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          {milestones.map((milestone, idx) => (
-            <motion.div
-              key={idx}
-              variants={itemVariants}
-              className={`p-6 rounded-2xl border transition-all ${
-                milestone.completed
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-muted/30 hover:border-primary'
-              }`}
+      <section className="rounded-2xl border border-border/70 bg-background p-6 shadow-sm">
+        <h3 className="text-lg font-semibold">Milestones</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {milestones.map((item, idx) => (
+            <motion.article
+              key={item.title}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, delay: idx * 0.05 }}
+              className="rounded-xl border border-border/70 bg-muted/20 p-4"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="text-muted-foreground text-sm font-medium">{milestone.days}-Day Streak</p>
-                  <h3 className="text-lg font-semibold text-foreground">{milestone.title}</h3>
-                </div>
-                {milestone.completed ? (
-                  <div className="text-3xl">🏆</div>
-                ) : (
-                  <div className="text-3xl">🎯</div>
-                )}
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-medium">{item.title}</p>
+                <span className="text-xs text-muted-foreground">{item.status}</span>
               </div>
-
-              {!milestone.completed && (
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-semibold text-primary">{milestone.progress}%</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${milestone.progress}%` }}
-                      transition={{ duration: 1, delay: 0.2 + idx * 0.1 }}
-                      className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {milestone.completed && (
-                <p className="text-sm text-primary font-medium">Unlocked!</p>
-              )}
-            </motion.div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${item.progress}%` }} />
+              </div>
+            </motion.article>
           ))}
         </div>
-      </motion.div>
-
-      {/* Weekly Summary */}
-      <motion.div variants={itemVariants} className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-foreground">This Week</h2>
-          <p className="text-muted-foreground">Your weekly breakdown</p>
-        </div>
-
-        <div className="p-6 rounded-2xl border border-border bg-muted/30">
-          <div className="space-y-3">
-            {weekDays.map((day, idx) => {
-              const minutes = Math.floor(Math.random() * 120) + 10;
-              return (
-                <div key={idx} className="space-y-1">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-medium text-foreground">{day}</span>
-                    <span className="text-muted-foreground">{minutes} mins</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(minutes / 120) * 100}%` }}
-                      transition={{ duration: 1, delay: 0.2 + idx * 0.05 }}
-                      className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-border">
-            <div className="flex justify-between items-center text-sm">
-              <span className="font-medium text-foreground">Total this week</span>
-              <span className="text-lg font-bold text-primary">10h 42m</span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
+      </section>
+    </div>
   );
 }
