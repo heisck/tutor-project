@@ -11,15 +11,16 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+const isThemeType = (value: string | null): value is ThemeType => {
+  return value === 'dark' || value === 'light' || value === 'purple' || value === 'ocean';
+};
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeType>('dark');
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    // Get theme from localStorage or system preference
-    const stored = localStorage.getItem('app-theme');
-    const initialTheme = (stored as ThemeType) || 'dark';
+    const storedTheme = localStorage.getItem('app-theme');
+    const initialTheme = isThemeType(storedTheme) ? storedTheme : 'dark';
     setThemeState(initialTheme);
     applyTheme(initialTheme);
   }, []);
@@ -33,15 +34,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const applyTheme = (themeToApply: ThemeType) => {
     if (themeToApply === 'dark') {
       document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', themeToApply);
+      return;
     }
-  };
 
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return <>{children}</>;
-  }
+    document.documentElement.setAttribute('data-theme', themeToApply);
+  };
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
