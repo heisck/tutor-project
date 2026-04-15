@@ -97,6 +97,17 @@ const prismaStudyGoalPreferenceByValue: Record<
   quick_overview: PrismaStudyGoalPreference.QUICK_OVERVIEW,
 };
 
+function getPrismaEnumValue<T extends string, U>(
+  map: Record<T, U>,
+  key: T,
+): U {
+  const value = map[key];
+  if (value === undefined) {
+    throw new Error(`Unsupported enum value: ${key}`);
+  }
+  return value;
+}
+
 const allowedTransitions: Record<
   PrismaStudySessionStatus,
   readonly PrismaStudySessionStatus[]
@@ -160,7 +171,7 @@ export async function createStudySessionForOwnedDocument(
       data: {
         documentId: document.id,
         learningProfileId: learningProfile.id,
-        mode: prismaModeByValue[input.mode],
+        mode: getPrismaEnumValue(prismaModeByValue, input.mode),
         userId: input.userId,
       },
       include: {
@@ -294,14 +305,19 @@ async function resolveLearningProfileForSession(
   }
 
   const learningProfileData = {
-    academicLevel: prismaAcademicLevelByValue[input.calibration.academicLevel],
-    explanationStartPreference:
-      prismaExplanationStartPreferenceByValue[
-        input.calibration.explanationStartPreference
-      ],
+    academicLevel: getPrismaEnumValue(
+      prismaAcademicLevelByValue,
+      input.calibration.academicLevel,
+    ),
+    explanationStartPreference: getPrismaEnumValue(
+      prismaExplanationStartPreferenceByValue,
+      input.calibration.explanationStartPreference,
+    ),
     lastCalibratedAt: input.now,
-    studyGoalPreference:
-      prismaStudyGoalPreferenceByValue[input.calibration.sessionGoal],
+    studyGoalPreference: getPrismaEnumValue(
+      prismaStudyGoalPreferenceByValue,
+      input.calibration.sessionGoal,
+    ),
   } satisfies Omit<
     Prisma.LearningProfileUncheckedCreateInput,
     'id' | 'userId'

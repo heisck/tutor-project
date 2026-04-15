@@ -26,6 +26,17 @@ const prismaReasonByValue: Record<FeedbackReason, PrismaFeedbackReason> = {
   poor_explanation: PrismaFeedbackReason.POOR_EXPLANATION,
 };
 
+function getPrismaEnumValue<T extends string, U>(
+  map: Record<T, U>,
+  key: T,
+): U {
+  const value = map[key];
+  if (value === undefined) {
+    throw new Error(`Unsupported enum value: ${key}`);
+  }
+  return value;
+}
+
 export class FeedbackSubmissionError extends Error {
   public constructor(message: string) {
     super(message);
@@ -88,12 +99,15 @@ export async function submitOwnedUserFeedback(
     const feedback = await transaction.userFeedback.create({
       data: {
         conceptId: segment.conceptId,
-        contentType: prismaContentTypeByValue[input.contentType],
+        contentType: getPrismaEnumValue(
+          prismaContentTypeByValue,
+          input.contentType,
+        ),
         documentId: session.documentId,
         lessonSegmentId: segment.id,
         messageId:
           input.contentType === 'tutor_explanation' ? input.messageId : null,
-        reason: prismaReasonByValue[input.reason],
+        reason: getPrismaEnumValue(prismaReasonByValue, input.reason),
         scopeKey,
         studySessionId: session.id,
         userId: input.userId,
@@ -137,7 +151,10 @@ export async function submitOwnedUserFeedback(
     await transaction.feedbackAlert.create({
       data: {
         conceptId: segment.conceptId,
-        contentType: prismaContentTypeByValue[input.contentType],
+        contentType: getPrismaEnumValue(
+          prismaContentTypeByValue,
+          input.contentType,
+        ),
         documentId: session.documentId,
         feedbackCount,
         lessonSegmentId: segment.id,
@@ -163,7 +180,7 @@ async function countScopedFeedback(
 ): Promise<number> {
   return prisma.userFeedback.count({
     where: {
-      reason: prismaReasonByValue[reason],
+      reason: getPrismaEnumValue(prismaReasonByValue, reason),
       scopeKey,
     },
   });
