@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-
-import { APP_NAME } from '@ai-tutor-pwa/shared';
 import 'katex/dist/katex.min.css';
 
 import './globals.css';
 import { ThemeProvider } from './providers';
+
+const APP_NAME = 'TutorAI';
 
 export const metadata: Metadata = {
   title: `${APP_NAME} | Adaptive Tutoring`,

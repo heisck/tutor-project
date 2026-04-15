@@ -70,27 +70,28 @@ html[data-theme='ocean'] {
 }
 
 * {
-  @apply border-border box-border;
+  box-sizing: border-box;
+  border-color: hsl(var(--color-border));
 }
 
 html {
-  @apply bg-background;
+  background-color: hsl(var(--color-background));
+  transition: background-color 200ms ease-in-out, color 200ms ease-in-out;
 }
 
 body {
-  @apply bg-background text-foreground font-sans antialiased;
+  background-color: hsl(var(--color-background));
+  color: hsl(var(--color-foreground));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   margin: 0;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
   color: inherit;
   text-decoration: none;
-}
-
-/* Smooth transitions for theme switching */
-html {
-  transition: background-color 200ms ease-in-out, color 200ms ease-in-out;
 }
 
 * {

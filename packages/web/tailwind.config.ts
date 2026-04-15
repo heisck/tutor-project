@@ -8,17 +8,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: 'hsl(var(--color-background))',
-        foreground: 'hsl(var(--color-foreground))',
-        primary: 'hsl(var(--color-primary))',
-        'primary-foreground': 'hsl(var(--color-primary-foreground))',
-        secondary: 'hsl(var(--color-secondary))',
-        'secondary-foreground': 'hsl(var(--color-secondary-foreground))',
-        accent: 'hsl(var(--color-accent))',
-        'accent-foreground': 'hsl(var(--color-accent-foreground))',
-        muted: 'hsl(var(--color-muted))',
-        'muted-foreground': 'hsl(var(--color-muted-foreground))',
-        border: 'hsl(var(--color-border))',
+        background: 'hsl(var(--color-background) / <alpha-value>)',
+        foreground: 'hsl(var(--color-foreground) / <alpha-value>)',
+        primary: 'hsl(var(--color-primary) / <alpha-value>)',
+        'primary-foreground': 'hsl(var(--color-primary-foreground) / <alpha-value>)',
+        secondary: 'hsl(var(--color-secondary) / <alpha-value>)',
+        'secondary-foreground': 'hsl(var(--color-secondary-foreground) / <alpha-value>)',
+        accent: 'hsl(var(--color-accent) / <alpha-value>)',
+        'accent-foreground': 'hsl(var(--color-accent-foreground) / <alpha-value>)',
+        muted: 'hsl(var(--color-muted) / <alpha-value>)',
+        'muted-foreground': 'hsl(var(--color-muted-foreground) / <alpha-value>)',
+        border: 'hsl(var(--color-border) / <alpha-value>)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
