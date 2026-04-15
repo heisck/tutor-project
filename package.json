@@ -37,5 +37,13 @@
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.1",
     "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@ai-tutor-pwa/shared": "^0.1.0",
+    "framer-motion": "^12.38.0",
+    "katex": "^0.16.45",
+    "next": "^16.2.3",
+    "react": "^19.2.5",
+    "tailwindcss": "^4.2.2"
   }
 }
