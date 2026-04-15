@@ -1,149 +1,73 @@
-'use client';
+import UploadWorkspaceHost from './upload-workspace-host';
 
-import { motion } from 'framer-motion';
-import { useMemo, useState } from 'react';
-
-const supportedTypes = [
-  'application/pdf',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+const pipelineStages = [
+  {
+    title: 'Structure preserved',
+    description: 'Slides, pages, sections, and visual anchors stay attached to the material.',
+  },
+  {
+    title: 'ATUs extracted',
+    description: 'The system breaks notes into atomic teachable units instead of one generic summary.',
+  },
+  {
+    title: 'Concept graph built',
+    description: 'Prerequisites, misconceptions, and importance signals guide the teaching order.',
+  },
+  {
+    title: 'Tutor-ready runtime',
+    description: 'Coverage, retrieval, planning, and handoff memory become available for guided study.',
+  },
 ];
 
-const formatFileSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+const assurances = [
+  'Private document pipeline',
+  'Prerequisite-aware graph generation',
+  'Coverage tracking before mastery',
+  'Resume-ready session state',
+];
 
 export default function UploadPage() {
-  const [dragActive, setDragActive] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-
-  const totalSize = useMemo(
-    () => files.reduce((sum, file) => sum + file.size, 0),
-    [files]
-  );
-
-  const ingestFiles = (fileList: FileList) => {
-    const valid = Array.from(fileList).filter((file) => supportedTypes.includes(file.type));
-    setFiles((prev) => [...prev, ...valid]);
-  };
-
-  const handleDrop = (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    setDragActive(false);
-    ingestFiles(event.dataTransfer.files);
-  };
-
-  const handleUpload = async () => {
-    if (files.length === 0 || uploading) return;
-
-    setUploading(true);
-    for (let value = 0; value <= 100; value += 10) {
-      setProgress(value);
-      await new Promise((resolve) => setTimeout(resolve, 120));
-    }
-
-    setUploading(false);
-    setFiles([]);
-    setProgress(0);
-  };
-
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <section className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Content ingestion</p>
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Upload your learning material</h2>
-        <p className="text-sm text-muted-foreground sm:text-base">
-          Add source files and TutorAI will map concepts into your adaptive tutoring workflow.
-        </p>
-      </section>
-
-      <motion.label
-        onDragEnter={(event) => {
-          event.preventDefault();
-          setDragActive(true);
-        }}
-        onDragLeave={(event) => {
-          event.preventDefault();
-          setDragActive(false);
-        }}
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={handleDrop}
-        animate={dragActive ? { scale: 1.01 } : { scale: 1 }}
-        className={`block cursor-pointer rounded-3xl border border-dashed p-10 text-center transition-colors ${
-          dragActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-primary/60'
-        }`}
-      >
-        <input
-          type="file"
-          multiple
-          accept=".pdf,.ppt,.pptx,.doc,.docx"
-          className="hidden"
-          onChange={(event) => {
-            if (event.target.files) ingestFiles(event.target.files);
-          }}
-        />
-
-        <p className="text-sm font-semibold">Drag and drop files here</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          or click to browse · PDF, PPT/PPTX, DOC/DOCX · max 50MB per file
-        </p>
-      </motion.label>
-
-      <section className="rounded-2xl border border-border/70 bg-background p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Selected files</h3>
-          <p className="text-xs text-muted-foreground">
-            {files.length} file{files.length === 1 ? '' : 's'} · {formatFileSize(totalSize)}
+    <div className="space-y-8">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_340px]">
+        <article className="ui-panel ui-mesh overflow-hidden rounded-[34px] p-6 sm:p-8">
+          <p className="ui-kicker">Content ingestion</p>
+          <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">
+            Turn raw study material into a tutor-ready concept map.
+          </h2>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+            Upload slides, PDFs, and notes. TutorAI preserves structure, extracts ATUs, builds the concept
+            graph, and prepares the runtime that drives adaptive teaching and mastery checks.
           </p>
-        </div>
 
-        {files.length === 0 ? (
-          <p className="rounded-xl border border-border/70 bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-            No files selected yet.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {files.map((file, index) => (
-              <li key={`${file.name}-${index}`} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-                  className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  Remove
-                </button>
-              </li>
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {pipelineStages.map((stage) => (
+              <article key={stage.title} className="ui-panel-muted rounded-[24px] p-5">
+                <p className="ui-kicker">Pipeline stage</p>
+                <h3 className="mt-3 text-lg font-semibold">{stage.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{stage.description}</p>
+              </article>
             ))}
-          </ul>
-        )}
-
-        {uploading && (
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Uploading and indexing…</span>
-              <span className="font-semibold">{progress}%</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full bg-primary" />
-            </div>
           </div>
-        )}
+        </article>
 
-        <button
-          type="button"
-          onClick={handleUpload}
-          disabled={files.length === 0 || uploading}
-          className="mt-5 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {uploading ? 'Uploading…' : 'Upload and process files'}
-        </button>
+        <aside className="ui-panel rounded-[34px] p-6">
+          <p className="ui-kicker">Ingestion assurances</p>
+          <h3 className="mt-3 text-2xl font-semibold tracking-tight">What happens after upload</h3>
+          <div className="mt-6 space-y-3">
+            {assurances.map((item, index) => (
+              <div key={item} className="ui-panel-muted flex gap-4 rounded-[22px] p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-sm font-semibold text-primary">
+                  0{index + 1}
+                </div>
+                <p className="text-sm leading-6 text-foreground/92">{item}</p>
+              </div>
+            ))}
+          </div>
+        </aside>
       </section>
+
+      <UploadWorkspaceHost />
     </div>
   );
 }

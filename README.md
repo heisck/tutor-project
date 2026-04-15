@@ -1,53 +1,70 @@
-# ai-tutor-pwa
+# TutorAI
 
-AI-powered study and tutoring PWA built with the Festival methodology.
+TutorAI is an adaptive AI learning system that turns study material into a guided, voice-friendly, mastery-based tutoring experience grounded in evidence instead of assumption.
 
-## Workspace Structure
+## Product Definition
 
-- `packages/web` — Next.js frontend
-- `packages/api` — Fastify API service
-- `packages/db` — Prisma schema and database client
-- `packages/shared` — shared TypeScript types and constants
-- `packages/emails` — React Email templates
-- `festivals/active/ai-tutor-pwa-AT0001` — active FEST source of truth
+The product is designed to:
 
-## Tech Stack
+- ingest source material without silently dropping important content
+- break content into atomic teachable units (ATUs)
+- build concept and prerequisite structure before teaching
+- calibrate how a learner actually learns
+- teach in the right order with checks, reteaching, and difficulty control
+- require evidence before calling anything mastered
+- resume exactly where the learner left off
 
-- Turborepo monorepo
-- Next.js + TypeScript + Tailwind CSS
-- Fastify + Zod
-- Prisma + PostgreSQL + pgvector
-- Redis + BullMQ-ready wiring
-- Vitest + Supertest
+## Learner Journey
+
+1. Upload PDFs, slide decks, notes, or documents.
+2. Extract structure, visuals, ATUs, concepts, prerequisites, and likely misconceptions.
+3. Calibrate the learner through behavior and short tasks.
+4. Teach with guided modes like step by step tutoring, difficult-parts-only review, quiz, exam prep, flashcards, and voice support.
+5. Verify mastery through explanation, application, transfer, and simplified restatement.
+6. Revisit weak concepts and continue from the exact prior state.
+
+## Repository Map
+
+- `packages/web` - Next.js learner experience
+- `packages/api` - Fastify API, ingestion pipeline, tutor runtime, session orchestration
+- `packages/db` - Prisma schema and persistence
+- `packages/shared` - shared contracts and schemas
+- `festivals/active/ai-tutor-pwa-AT0001` - platform foundation festival
+- `festivals/active/ai-tutor-core-tutoring-AT0002` - tutoring-core festival
+
+## Product Source Of Truth
+
+- [`workflow/design/adaptive-ai-learning-system/README.md`](workflow/design/adaptive-ai-learning-system/README.md)
+- [`workflow/design/adaptive-ai-learning-system/IMPLEMENTATION_PLAN.md`](workflow/design/adaptive-ai-learning-system/IMPLEMENTATION_PLAN.md)
 
 ## Local Setup
 
-1. Install dependencies:
+1. Install dependencies.
 
 ```bash
 npm install
 ```
 
-2. Copy the example environment file:
+2. Copy the environment file.
 
 ```bash
 cp .env.example .env.local
 ```
 
-3. Start PostgreSQL and Redis:
+3. Start PostgreSQL and Redis.
 
 ```bash
 npm run docker:up
 ```
 
-4. Generate the Prisma client and push the initial schema:
+4. Generate the Prisma client and push the schema.
 
 ```bash
 npm run db:generate
 npm run db:push
 ```
 
-5. Start the apps:
+5. Start the apps.
 
 ```bash
 npm run dev
@@ -63,9 +80,3 @@ npm run lint
 npm run typecheck
 npm run test
 ```
-
-## Health Endpoints
-
-- `GET /health`
-- `GET /health/db`
-- `GET /health/redis`
