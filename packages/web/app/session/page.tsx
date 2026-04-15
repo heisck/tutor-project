@@ -1,203 +1,221 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
 
-type MessageType = 'explanation' | 'question' | 'user-answer';
+type MessageType = 'assistant' | 'user' | 'question';
 
 interface Message {
   id: string;
   type: MessageType;
   content: string;
-  timestamp: Date;
+  time: string;
 }
+
+const quickActions = ['Generate question', 'Explain simpler', 'Give summary'];
 
 export default function SessionPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      type: 'explanation',
+      id: 'assistant-intro',
+      type: 'assistant',
       content:
-        'Hello! I\'m your AI tutor. I\'ve analyzed your learning material. What would you like to learn about today?',
-      timestamp: new Date(),
+        'Welcome back. I reviewed your uploaded material and detected three key concepts to focus on. Which one should we tackle first?',
+      time: '09:14',
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const canSend = input.trim().length > 0 && !loading;
+  const sessionStats = useMemo(
+    () => [
+      { label: 'Session confidence', value: '81%' },
+      { label: 'Questions answered', value: '7' },
+      { label: 'Concepts covered', value: '3 / 5' },
+    ],
+    []
+  );
 
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user-answer',
-      content: input,
-      timestamp: new Date(),
-    };
+  const addAssistantMessage = (type: MessageType, content: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${type}`,
+        type,
+        content,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  };
 
-    setMessages((prev) => [...prev, userMessage]);
+  const handleSend = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canSend) return;
+
+    const userText = input.trim();
     setInput('');
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        type: 'user',
+        content: userText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+
     setLoading(true);
-
-    // Simulate AI response
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const aiMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      type: 'explanation',
-      content:
-        'This is a great question! Let me break this down step by step for you. First, we need to understand the core concept...',
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, aiMessage]);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    addAssistantMessage(
+      'assistant',
+      'Great prompt. Start by isolating the core definition, then map one concrete example. Want me to quiz you next?'
+    );
     setLoading(false);
   };
 
-  const handleGetQuestion = async () => {
+  const handleQuickAction = async (action: string) => {
+    if (loading) return;
+
     setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (action === 'Generate question') {
+      addAssistantMessage(
+        'question',
+        'Check your understanding: how would you explain this concept to a beginner in under 60 seconds?'
+      );
+    } else if (action === 'Explain simpler') {
+      addAssistantMessage(
+        'assistant',
+        'Think of it like a checklist: identify inputs, define the transformation, then confirm the output with one test case.'
+      );
+    } else {
+      addAssistantMessage(
+        'assistant',
+        'Summary: You understand the definition well, but need one more practice cycle on application and edge cases.'
+      );
+    }
 
-    const question: Message = {
-      id: Date.now().toString(),
-      type: 'question',
-      content:
-        'Based on what we\'ve discussed, can you explain the difference between these two concepts?',
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, question]);
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-40 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-foreground">Tutoring Session</h1>
-          <button className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors text-sm">
-            End Session
-          </button>
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Live tutor session</p>
+            <h1 className="text-lg font-semibold">Adaptive coaching workspace</h1>
+          </div>
+          <Link
+            href="/dashboard"
+            className="rounded-lg border border-border px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"
+          >
+            Exit session
+          </Link>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-8">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            {messages.map((message, idx) => (
+      <main className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1.6fr_0.8fr] lg:px-8 lg:py-8">
+        <section className="rounded-3xl border border-border/70 bg-background shadow-sm">
+          <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+            <p className="text-sm font-medium">Conversation</p>
+          </div>
+
+          <div className="max-h-[58vh] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+            {messages.map((message, index) => (
               <motion.div
                 key={message.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.1 }}
-                className={`flex ${
-                  message.type === 'user-answer' ? 'justify-end' : 'justify-start'
-                }`}
+                transition={{ duration: 0.24, delay: index * 0.03 }}
+                className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div
-                  className={`max-w-2xl rounded-2xl px-6 py-4 ${
-                    message.type === 'user-answer'
-                      ? 'bg-primary text-primary-foreground rounded-br-none'
-                      : 'bg-muted text-foreground rounded-bl-none'
+                <article
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm sm:max-w-[75%] ${
+                    message.type === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : message.type === 'question'
+                        ? 'border border-primary/25 bg-primary/10 text-foreground'
+                        : 'border border-border bg-muted/40 text-foreground'
                   }`}
                 >
-                  <div className="space-y-2">
-                    {message.type === 'question' && (
-                      <p className="text-sm font-semibold text-accent">Question for you:</p>
-                    )}
-                    <p className="leading-relaxed">{message.content}</p>
-                    <p className="text-xs opacity-60 mt-2">
-                      {message.timestamp.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                </div>
+                  <p className="leading-relaxed">{message.content}</p>
+                  <p className="mt-2 text-[11px] opacity-65">{message.time}</p>
+                </article>
               </motion.div>
             ))}
 
             {loading && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex justify-start"
-              >
-                <div className="bg-muted rounded-2xl rounded-bl-none px-6 py-4">
-                  <div className="flex gap-2">
-                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse"></div>
-                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+              <div className="flex justify-start">
+                <div className="rounded-2xl border border-border bg-muted/40 px-4 py-3">
+                  <div className="flex gap-1.5">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:100ms]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:200ms]" />
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </motion.div>
-        </div>
+          </div>
 
-        {/* Input Area */}
-        <div className="border-t border-border bg-background/80 backdrop-blur-sm px-6 py-6">
-          <div className="space-y-4">
-            {/* Quick Actions */}
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={handleGetQuestion}
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-muted text-foreground hover:border-primary border border-border transition-all text-sm font-medium disabled:opacity-50"
-              >
-                Get Question
-              </button>
-              <button
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-muted text-foreground hover:border-primary border border-border transition-all text-sm font-medium disabled:opacity-50"
-              >
-                Clarify
-              </button>
-              <button
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-muted text-foreground hover:border-primary border border-border transition-all text-sm font-medium disabled:opacity-50"
-              >
-                Summary
-              </button>
+          <div className="border-t border-border/70 px-5 py-4 sm:px-6">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {quickActions.map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleQuickAction(action)}
+                  className="rounded-lg border border-border px-3 py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
+                >
+                  {action}
+                </button>
+              ))}
             </div>
 
-            {/* Message Input */}
-            <form onSubmit={handleSendMessage} className="flex gap-3">
+            <form onSubmit={handleSend} className="flex gap-3">
               <input
-                type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask a question or share your answer..."
-                disabled={loading}
-                className="flex-1 px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50"
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Ask for a deeper explanation, example, or test question…"
+                className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
               />
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 type="submit"
-                disabled={loading || !input.trim()}
-                className="px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
+                disabled={!canSend}
+                className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 Send
-              </motion.button>
+              </button>
             </form>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Your learning is personalized. The AI adjusts explanations based on your responses.
-            </p>
           </div>
-        </div>
-      </div>
+        </section>
+
+        <aside className="space-y-4">
+          <section className="rounded-3xl border border-border/70 bg-background p-5 shadow-sm">
+            <p className="text-sm font-semibold">Session analytics</p>
+            <div className="mt-4 space-y-3">
+              {sessionStats.map((stat) => (
+                <div key={stat.label} className="rounded-xl border border-border/70 bg-muted/30 p-3">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{stat.label}</p>
+                  <p className="mt-1 text-lg font-semibold">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-border/70 bg-background p-5 shadow-sm">
+            <p className="text-sm font-semibold">Current objective</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Explain the target concept clearly, then solve one applied scenario without hints.
+            </p>
+          </section>
+        </aside>
+      </main>
     </div>
   );
 }

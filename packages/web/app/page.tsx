@@ -3,187 +3,129 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
+const features = [
+  {
+    title: 'Context-aware tutoring',
+    description: 'Ask questions against your uploaded lectures, slides, and notes with citations.',
+  },
+  {
+    title: 'Adaptive practice engine',
+    description: 'Generate drills that adjust difficulty based on your recent responses.',
+  },
+  {
+    title: 'Progress intelligence',
+    description: 'Track weak concepts, streak consistency, and session quality in one place.',
+  },
+  {
+    title: 'Fast content ingestion',
+    description: 'Upload PDFs or decks and map concepts into study-ready chunks in minutes.',
+  },
+  {
+    title: 'Session handoff memory',
+    description: 'Resume learning where you left off with goals and notes preserved.',
+  },
+  {
+    title: 'Production observability',
+    description: 'Monitor ingestion, response quality, and runtime health as usage scales.',
+  },
+];
+
+const proofPoints = [
+  { label: 'Avg. response latency', value: '< 2.5s' },
+  { label: 'Document formats', value: 'PDF · PPTX · DOCX' },
+  { label: 'Tutor modes', value: 'Explain · Quiz · Coach' },
+];
+
 export default function HomePage() {
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-        delayChildren: 0.3,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: 'easeOut' },
-    },
-  };
-
   return (
-    <main className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold text-primary">TutorAI</div>
-          <div className="flex gap-4">
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" className="text-lg font-semibold tracking-tight sm:text-xl">
+            TutorAI
+          </Link>
+          <nav className="flex items-center gap-3">
             <Link
               href="/auth/login"
-              className="px-4 py-2 text-foreground hover:text-primary transition-colors"
+              className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              Sign In
+              Sign in
             </Link>
             <Link
               href="/auth/signup"
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
-              Get Started
+              Start free
             </Link>
-          </div>
+          </nav>
         </div>
-      </nav>
+      </header>
 
-      {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+      <section className="mx-auto grid w-full max-w-7xl gap-10 px-4 pb-16 pt-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12 lg:px-8 lg:pb-24 lg:pt-20">
         <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
           className="space-y-8"
         >
-          <motion.div variants={itemVariants} className="space-y-4">
-            <p className="text-primary font-semibold uppercase tracking-wider text-sm">
-              Intelligent Learning Platform
-            </p>
-            <h1 className="text-5xl md:text-7xl font-bold text-foreground leading-tight">
-              Learn Smarter with{' '}
-              <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                AI Tutoring
-              </span>
+          <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">AI tutoring platform</p>
+            <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+              A focused learning workspace that feels like a senior tutor.
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
-              Upload your materials—PDFs, slides, documents—and get personalized AI explanations, adaptive questions, and learning insights tailored to your pace.
+            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              TutorAI turns your own material into adaptive coaching sessions, practice prompts, and
+              confidence-building feedback. Built for serious learners and teams preparing for exams.
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div variants={itemVariants} className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-3">
             <Link
               href="/auth/signup"
-              className="px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-all transform hover:scale-105"
+              className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
             >
-              Start Learning Now
+              Create workspace
             </Link>
             <Link
-              href="#features"
-              className="px-8 py-4 border border-border rounded-lg font-semibold text-foreground hover:bg-muted transition-colors"
+              href="/dashboard"
+              className="rounded-xl border border-border px-6 py-3 text-sm font-semibold transition-colors hover:bg-muted"
             >
-              Learn More
+              Explore dashboard
             </Link>
-          </motion.div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {proofPoints.map((point) => (
+              <div key={point.label} className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">{point.label}</p>
+                <p className="mt-2 text-lg font-semibold">{point.value}</p>
+              </div>
+            ))}
+          </div>
         </motion.div>
-      </section>
 
-      {/* Features Section */}
-      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          viewport={{ once: true }}
-          className="text-4xl md:text-5xl font-bold text-foreground mb-16 text-center"
+        <motion.aside
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.05, ease: 'easeOut' }}
+          className="rounded-3xl border border-border/70 bg-gradient-to-b from-background to-muted/20 p-6 shadow-sm sm:p-8"
         >
-          Features
-        </motion.h2>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            {
-              icon: '📚',
-              title: 'Smart Material Upload',
-              description:
-                'Upload PDFs, slides, or documents. Our AI understands and extracts content automatically.',
-            },
-            {
-              icon: '🤖',
-              title: 'AI-Powered Explanations',
-              description:
-                'Get detailed explanations tailored to your learning style and comprehension level.',
-            },
-            {
-              icon: '📊',
-              title: 'Learning Analytics',
-              description:
-                'Track your progress, streaks, and areas for improvement with detailed insights.',
-            },
-            {
-              icon: '❓',
-              title: 'Adaptive Questions',
-              description:
-                'Practice with AI-generated questions that adapt to your knowledge level.',
-            },
-            {
-              icon: '🎯',
-              title: 'Personalized Learning Paths',
-              description:
-                'Get custom learning recommendations based on your goals and performance.',
-            },
-            {
-              icon: '⚡',
-              title: 'Real-Time Feedback',
-              description:
-                'Receive instant feedback on your answers with step-by-step explanations.',
-            },
-          ].map((feature, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: idx * 0.1 }}
-              viewport={{ once: true }}
-              className="p-8 rounded-2xl border border-border hover:border-primary transition-colors hover:shadow-lg hover:shadow-primary/10"
-            >
-              <div className="text-4xl mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                {feature.title}
-              </h3>
-              <p className="text-muted-foreground">{feature.description}</p>
-            </motion.div>
-          ))}
-        </div>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">What you get</p>
+          <ul className="mt-5 space-y-4">
+            {features.map((feature) => (
+              <li key={feature.title} className="rounded-xl border border-border/70 bg-background/60 p-4">
+                <p className="text-sm font-semibold">{feature.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{feature.description}</p>
+              </li>
+            ))}
+          </ul>
+        </motion.aside>
       </section>
 
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          viewport={{ once: true }}
-          className="bg-gradient-to-r from-primary/20 via-secondary/20 to-accent/20 rounded-3xl border border-border p-12 md:p-16 text-center"
-        >
-          <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-            Ready to Transform Your Learning?
-          </h2>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join thousands of students already learning smarter with AI-powered tutoring.
-          </p>
-          <Link
-            href="/auth/signup"
-            className="inline-block px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-all transform hover:scale-105"
-          >
-            Get Started Free
-          </Link>
-        </motion.div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border mt-20 py-12 bg-background/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-muted-foreground">
-          <p>&copy; 2024 TutorAI. All rights reserved.</p>
+      <footer className="border-t border-border/70 py-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <p>© 2026 TutorAI</p>
+          <p>Built for reliable, production-ready learning experiences.</p>
         </div>
       </footer>
     </main>
