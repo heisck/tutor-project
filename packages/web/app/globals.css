@@ -105,25 +105,28 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-muted;
+  background-color: hsl(var(--color-muted));
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-primary rounded-full;
+  background-color: hsl(var(--color-primary));
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-accent;
+  background-color: hsl(var(--color-accent));
 }
 
 /* Selection styling */
 ::selection {
-  @apply bg-primary text-primary-foreground;
+  background-color: hsl(var(--color-primary));
+  color: hsl(var(--color-primary-foreground));
 }
 
 /* Focus visible for accessibility */
 :focus-visible {
-  @apply outline-2 outline-offset-2 outline-primary;
+  outline: 2px solid hsl(var(--color-primary));
+  outline-offset: 2px;
 }
 
 /* Smooth scroll behavior */
