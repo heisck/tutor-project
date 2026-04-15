@@ -13,6 +13,15 @@
     "noEmit": true,
     "allowJs": false,
     "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@/components/*": ["./app/components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/hooks/*": ["./lib/hooks/*"],
+      "@/contexts/*": ["./lib/contexts/*"],
+      "@/types/*": ["./lib/types/*"]
+    },
     "plugins": [
       {
         "name": "next"

@@ -1,82 +1,191 @@
+'use client';
+
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 
-import { loadWebEnv } from '../src/env';
-
-const env = loadWebEnv();
-
 export default function HomePage() {
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2,
+        delayChildren: 0.3,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5, ease: 'easeOut' },
+    },
+  };
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center gap-10 px-6 py-16">
-      <section className="grid gap-10 lg:grid-cols-[1.3fr_0.9fr] lg:items-end">
-        <div className="space-y-5">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-700">
-            Core Tutoring Runtime
-          </p>
-          <h1 className="max-w-4xl text-5xl font-semibold tracking-tight text-slate-950 md:text-6xl">
-            The tutoring stack is ready for live study-session work.
-          </h1>
-          <p className="max-w-3xl text-lg leading-8 text-slate-700">
-            Session orchestration, tutor streaming, and response evaluation are now
-            available through the active FEST implementation. Open the learner
-            session surface to start a study session against the authenticated API.
-          </p>
-          <div className="flex flex-wrap items-center gap-4">
+    <main className="min-h-screen bg-background">
+      {/* Navigation */}
+      <nav className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <div className="text-2xl font-bold text-primary">TutorAI</div>
+          <div className="flex gap-4">
             <Link
-              className="rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              href="/session"
+              href="/auth/login"
+              className="px-4 py-2 text-foreground hover:text-primary transition-colors"
             >
-              Open Session Workspace
+              Sign In
             </Link>
-            <p className="text-sm text-slate-600">
-              API base URL: <span className="font-semibold">{env.NEXT_PUBLIC_API_BASE_URL}</span>
-            </p>
+            <Link
+              href="/auth/signup"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+            >
+              Get Started
+            </Link>
           </div>
         </div>
+      </nav>
 
-        <section className="rounded-[2rem] border border-amber-200/70 bg-white/85 p-7 shadow-[0_24px_80px_rgba(83,52,28,0.12)] backdrop-blur">
-          <p className="text-sm font-semibold uppercase tracking-[0.26em] text-amber-700">
-            What This Surface Covers
-          </p>
-          <div className="mt-5 space-y-4 text-sm leading-6 text-slate-700">
-            <p>
-              Mini-calibration inputs shape the first explanation strategy for an
-              authenticated learner.
+      {/* Hero Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="space-y-8"
+        >
+          <motion.div variants={itemVariants} className="space-y-4">
+            <p className="text-primary font-semibold uppercase tracking-wider text-sm">
+              Intelligent Learning Platform
             </p>
-            <p>
-              Tutor SSE output is rendered in order so explanation content stays
-              grounded in the server session state.
+            <h1 className="text-5xl md:text-7xl font-bold text-foreground leading-tight">
+              Learn Smarter with{' '}
+              <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                AI Tutoring
+              </span>
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
+              Upload your materials—PDFs, slides, documents—and get personalized AI explanations, adaptive questions, and learning insights tailored to your pace.
             </p>
-            <p>
-              Learner responses flow back into the tutor evaluation endpoint with
-              visible loading, success, and validation feedback.
-            </p>
-          </div>
-        </section>
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="flex flex-wrap gap-4">
+            <Link
+              href="/auth/signup"
+              className="px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-all transform hover:scale-105"
+            >
+              Start Learning Now
+            </Link>
+            <Link
+              href="#features"
+              className="px-8 py-4 border border-border rounded-lg font-semibold text-foreground hover:bg-muted transition-colors"
+            >
+              Learn More
+            </Link>
+          </motion.div>
+        </motion.div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <article className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-          <h2 className="text-lg font-semibold text-slate-950">Calibration</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Academic level, session goal, and explanation preference are captured
-            before a session begins.
-          </p>
-        </article>
-        <article className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-          <h2 className="text-lg font-semibold text-slate-950">Streaming Tutor</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Ordered SSE events open the tutoring stream and render explanation
-            messages as they arrive.
-          </p>
-        </article>
-        <article className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-          <h2 className="text-lg font-semibold text-slate-950">Response Handling</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Learner answers are validated, submitted, and evaluated without using
-            client-side token storage.
-          </p>
-        </article>
+      {/* Features Section */}
+      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true }}
+          className="text-4xl md:text-5xl font-bold text-foreground mb-16 text-center"
+        >
+          Features
+        </motion.h2>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {[
+            {
+              icon: '📚',
+              title: 'Smart Material Upload',
+              description:
+                'Upload PDFs, slides, or documents. Our AI understands and extracts content automatically.',
+            },
+            {
+              icon: '🤖',
+              title: 'AI-Powered Explanations',
+              description:
+                'Get detailed explanations tailored to your learning style and comprehension level.',
+            },
+            {
+              icon: '📊',
+              title: 'Learning Analytics',
+              description:
+                'Track your progress, streaks, and areas for improvement with detailed insights.',
+            },
+            {
+              icon: '❓',
+              title: 'Adaptive Questions',
+              description:
+                'Practice with AI-generated questions that adapt to your knowledge level.',
+            },
+            {
+              icon: '🎯',
+              title: 'Personalized Learning Paths',
+              description:
+                'Get custom learning recommendations based on your goals and performance.',
+            },
+            {
+              icon: '⚡',
+              title: 'Real-Time Feedback',
+              description:
+                'Receive instant feedback on your answers with step-by-step explanations.',
+            },
+          ].map((feature, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: idx * 0.1 }}
+              viewport={{ once: true }}
+              className="p-8 rounded-2xl border border-border hover:border-primary transition-colors hover:shadow-lg hover:shadow-primary/10"
+            >
+              <div className="text-4xl mb-4">{feature.icon}</div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                {feature.title}
+              </h3>
+              <p className="text-muted-foreground">{feature.description}</p>
+            </motion.div>
+          ))}
+        </div>
       </section>
+
+      {/* CTA Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true }}
+          className="bg-gradient-to-r from-primary/20 via-secondary/20 to-accent/20 rounded-3xl border border-border p-12 md:p-16 text-center"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            Ready to Transform Your Learning?
+          </h2>
+          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Join thousands of students already learning smarter with AI-powered tutoring.
+          </p>
+          <Link
+            href="/auth/signup"
+            className="inline-block px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-all transform hover:scale-105"
+          >
+            Get Started Free
+          </Link>
+        </motion.div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border mt-20 py-12 bg-background/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-muted-foreground">
+          <p>&copy; 2024 TutorAI. All rights reserved.</p>
+        </div>
+      </footer>
     </main>
   );
 }
