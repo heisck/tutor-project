@@ -110,68 +110,11 @@ export default function CoursesPage() {
           </div>
         )}
 
-        <div className="grid lg:grid-cols-[1fr_1.2fr] gap-8">
-          <Card variant="gradient">
-            <CardHeader
-              description="Create a course shell before attaching future documents to it."
-              title="Create Course"
-            />
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Course Name
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="Introduction to Computing"
-                    type="text"
-                    value={name}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Course Code
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
-                    onChange={(event) => setCode(event.target.value)}
-                    placeholder="CSC101"
-                    type="text"
-                    value={code}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Level
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
-                    onChange={(event) => setLevel(event.target.value)}
-                    placeholder="100"
-                    type="text"
-                    value={level}
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  loading={submitting}
-                  onClick={() => void createCourse()}
-                  variant="primary"
-                >
-                  <Plus size={16} />
-                  Save Course
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader
-              description="Courses are returned directly from the profile API."
-              title={`Your Courses (${courses.length})`}
-            />
+        <Card>
+          <CardHeader
+            description="Courses help organize your materials by subject."
+            title={`Your Courses (${courses.length})`}
+          />
             <CardContent>
               {courses.length === 0 ? (
                 <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-6 text-cream-400">
@@ -211,8 +154,63 @@ export default function CoursesPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
-        </div>
+        </Card>
+
+        <Card variant="elevated">
+          <CardHeader title="Add Course (Optional)" />
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-cream-400 mb-4">
+                Create course shells to organize materials, or just upload documents directly.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
+                  Course Name
+                </label>
+                <input
+                  className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Introduction to Computing"
+                  type="text"
+                  value={name}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
+                  Course Code
+                </label>
+                <input
+                  className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                  onChange={(event) => setCode(event.target.value)}
+                  placeholder="CSC101"
+                  type="text"
+                  value={code}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
+                  Level
+                </label>
+                <input
+                  className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                  onChange={(event) => setLevel(event.target.value)}
+                  placeholder="100"
+                  type="text"
+                  value={level}
+                />
+              </div>
+              <Button
+                className="w-full"
+                loading={submitting}
+                onClick={() => void createCourse()}
+                variant="primary"
+              >
+                <Plus size={16} />
+                Create Course
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

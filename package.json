@@ -42,5 +42,10 @@
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.1",
     "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@ai-tutor-pwa/shared": "^0.1.0",
+    "lucide-react": "^1.8.0",
+    "react": "^19.2.5"
   }
 }

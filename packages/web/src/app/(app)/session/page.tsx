@@ -369,13 +369,12 @@ function SessionLauncher({
 }) {
   return (
     <div className="flex-1 overflow-auto">
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        {/* Header */}
+      <div className="max-w-2xl mx-auto px-6 py-10">
+        {/* Header - minimal */}
         <div className="mb-8">
-          <p className="label-mono text-xs text-amber mb-2">Study Session</p>
-          <h1 className="display-lg text-cream mb-2">Start a session.</h1>
-          <p className="text-cream-muted" style={{ fontFamily: 'var(--font-source-serif)' }}>
-            Choose a processed document, tune your preferences, and begin.
+          <h1 className="display-md text-cream mb-2">What would you like to study?</h1>
+          <p className="text-cream-muted text-sm" style={{ fontFamily: 'var(--font-source-serif)' }}>
+            Pick a document to begin learning.
           </p>
         </div>
 
@@ -385,18 +384,15 @@ function SessionLauncher({
           </div>
         )}
 
-        <div className="grid lg:grid-cols-[1.5fr_1fr] gap-6">
-          {/* Document picker */}
-          <div className="card p-6">
-            <p className="label-mono text-xs text-cream-muted mb-4">Select document</p>
-
-            {documents.length === 0 ? (
-              <div className="text-center py-10 space-y-4">
-                <div className="w-12 h-12 rounded-xl bg-surface-hover border border-surface-border flex items-center justify-center mx-auto">
-                  <Upload size={20} className="text-cream-muted" />
-                </div>
-                <p className="text-cream-muted text-sm" style={{ fontFamily: 'var(--font-source-serif)' }}>
-                  No documents ready yet. Upload and process a file first.
+        {/* Document list */}
+        <div className="space-y-3">
+          {documents.length === 0 ? (
+            <div className="text-center py-12 space-y-4 px-6">
+              <div className="w-12 h-12 rounded-xl bg-surface-hover border border-surface-border flex items-center justify-center mx-auto">
+                <Upload size={20} className="text-cream-muted" />
+              </div>
+              <p className="text-cream-muted text-sm" style={{ fontFamily: 'var(--font-source-serif)' }}>
+                No documents ready yet. Upload and process a file first.
                 </p>
                 <button className="btn-primary text-sm" onClick={onUpload}>
                   Upload material
@@ -439,59 +435,27 @@ function SessionLauncher({
                 ))}
               </div>
             )}
-          </div>
+        </div>
 
-          {/* Session config */}
-          <div className="card p-6 flex flex-col gap-4">
-            <p className="label-mono text-xs text-cream-muted">Session preferences</p>
-
-            <SelectField
-              label="Mode"
-              value={mode}
-              options={STUDY_SESSION_MODES}
-              onChange={onSetMode}
-            />
-            <SelectField
-              label="Academic level"
-              value={calibration.academicLevel}
-              options={ACADEMIC_LEVELS}
-              onChange={(v) => onSetCalibration({ ...calibration, academicLevel: v })}
-            />
-            <SelectField
-              label="Explanation style"
-              value={calibration.explanationStartPreference}
-              options={EXPLANATION_START_PREFERENCES}
-              onChange={(v) =>
-                onSetCalibration({ ...calibration, explanationStartPreference: v })
-              }
-            />
-            <SelectField
-              label="Goal"
-              value={calibration.sessionGoal}
-              options={STUDY_GOAL_PREFERENCES}
-              onChange={(v) => onSetCalibration({ ...calibration, sessionGoal: v })}
-            />
-
-            <div className="mt-auto pt-2">
-              <button
-                className="btn-primary w-full justify-center"
-                disabled={documents.length === 0 || launching}
-                onClick={onStart}
-              >
-                {launching ? (
-                  <>
-                    <LoaderCircle size={15} className="animate-spin" />
-                    Starting…
-                  </>
-                ) : (
-                  <>
-                    <Play size={15} />
-                    Start session
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+        {/* Start button - simple */}
+        <div className="mt-8">
+          <button
+            className="btn-primary w-full justify-center py-3"
+            disabled={documents.length === 0 || launching}
+            onClick={onStart}
+          >
+            {launching ? (
+              <>
+                <LoaderCircle size={16} className="animate-spin" />
+                Starting…
+              </>
+            ) : (
+              <>
+                <Play size={16} />
+                Start learning
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -562,33 +526,25 @@ function ActiveSession({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* Session header */}
+      {/* Session header - minimal */}
       <div className="shrink-0 border-b border-surface-border bg-surface px-5 py-3 flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="badge badge-ai">{sessionState.session.mode.replaceAll('_', ' ')}</span>
-            <span className="badge badge-muted">{sessionState.session.status}</span>
-          </div>
           <h1
-            className="text-base font-semibold text-cream truncate"
+            className="text-sm font-semibold text-cream truncate"
             style={{ fontFamily: 'var(--font-fraunces)' }}
           >
             {currentSegment?.conceptTitle ?? 'Study Session'}
           </h1>
+          <p className="label-mono text-xs text-cream-muted mt-0.5">
+            Step {sessionState.modeContext.queueCursor + 1} of {sessionState.modeContext.queueSize}
+          </p>
         </div>
-        <div className="shrink-0 flex items-center gap-2">
-          <button
-            className="btn-ghost text-xs px-3 py-1.5"
-            onClick={onRefresh}
-            disabled={requestingTurn}
-          >
-            <RefreshCw size={13} className={requestingTurn ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-          <button className="btn-ghost text-xs px-3 py-1.5" onClick={onBack}>
-            ← Launcher
-          </button>
-        </div>
+        <button
+          className="btn-ghost text-xs px-3 py-1.5 shrink-0"
+          onClick={onBack}
+        >
+          ← Back
+        </button>
       </div>
 
       {/* Main content: chat + sidebar */}
@@ -610,12 +566,12 @@ function ActiveSession({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input area */}
-          <div className="shrink-0 border-t border-surface-border bg-surface/80 backdrop-blur-sm px-5 py-4 space-y-3">
+          {/* Input area - simplified */}
+          <div className="shrink-0 border-t border-surface-border bg-surface/80 backdrop-blur-sm px-5 py-4 space-y-2">
             <div className="flex gap-2">
               <input
                 className="input flex-1 text-sm py-2.5"
-                placeholder="Respond to the tutor, or use Ask Tutor for a question…"
+                placeholder="Type your answer…"
                 value={input}
                 onChange={(e) => onInputChange(e.target.value)}
                 onKeyDown={handleKey}
@@ -634,45 +590,47 @@ function ActiveSession({
               </button>
             </div>
 
-            {/* Action row */}
-            <div className="flex flex-wrap gap-2">
+            {/* Minimal helper buttons - on hover only */}
+            <div className="flex flex-wrap gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
               <button
-                className="btn-secondary text-xs px-3 py-1.5"
-                disabled={asking || input.trim().length === 0}
-                onClick={() => onAskQuestion(input)}
+                className="btn-ghost text-xs px-2.5 py-1"
+                disabled={voiceCommandBusy}
+                onClick={() => onSendCommand('simpler')}
+                title="Make the explanation simpler"
               >
-                {asking ? (
-                  <LoaderCircle size={12} className="animate-spin" />
-                ) : (
-                  <MessageSquare size={12} />
-                )}
-                Ask tutor
+                <Lightbulb size={11} />
+                Simpler
               </button>
               <button
-                className="btn-ghost text-xs px-3 py-1.5"
+                className="btn-ghost text-xs px-2.5 py-1"
+                disabled={voiceCommandBusy}
+                onClick={() => onSendCommand('example')}
+                title="Show an example"
+              >
+                <Sparkles size={11} />
+                Example
+              </button>
+              <button
+                className="btn-ghost text-xs px-2.5 py-1"
+                disabled={voiceCommandBusy}
+                onClick={() => onSendCommand('repeat')}
+                title="Repeat the question"
+              >
+                <RotateCcw size={11} />
+                Repeat
+              </button>
+              <button
+                className="btn-ghost text-xs px-2.5 py-1"
                 disabled={requestingTurn}
                 onClick={onNextTurn}
+                title="Skip to next concept"
               >
                 {requestingTurn ? (
-                  <LoaderCircle size={12} className="animate-spin" />
+                  <LoaderCircle size={11} className="animate-spin" />
                 ) : (
-                  <Sparkles size={12} />
+                  <ChevronRight size={11} />
                 )}
-                Next turn
-              </button>
-              <button
-                className={cn(
-                  'btn-ghost text-xs px-3 py-1.5',
-                  recording && 'text-red-400 bg-red-500/10',
-                )}
-                onClick={onToggleRecording}
-              >
-                {recording ? <Pause size={12} /> : <Mic size={12} />}
-                {recording ? 'Stop' : 'Voice'}
-              </button>
-              <button className="btn-ghost text-xs px-3 py-1.5" onClick={onPlayAudio}>
-                <Volume2 size={12} />
-                Speak
+                Next
               </button>
             </div>
 
@@ -696,8 +654,8 @@ function ActiveSession({
           </div>
         </div>
 
-        {/* Right panel: session context */}
-        <div className="hidden lg:flex w-72 xl:w-80 shrink-0 flex-col border-l border-surface-border bg-surface/50 overflow-y-auto">
+        {/* Right panel: session context - HIDDEN for simplified UX */}
+        <div className="hidden w-72 xl:w-80 shrink-0 flex-col border-l border-surface-border bg-surface/50 overflow-y-auto">
           <div className="p-4 space-y-5">
             {/* Current concept */}
             <section>

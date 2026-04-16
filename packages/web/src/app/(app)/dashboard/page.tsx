@@ -8,16 +8,11 @@ import type {
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowUpRight,
   BookOpen,
   ChevronRight,
-  Clock,
-  Settings,
-  TrendingUp,
   Upload,
-  Zap,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardFooter, CardHeader, Navbar, Stat } from '@/components';
+import { Button, Card, CardContent, CardFooter, CardHeader, Navbar } from '@/components';
 import { api, ApiError } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/utils';
 
@@ -101,19 +96,12 @@ export default function DashboardPage() {
 
       <Navbar user={user} onLogout={handleLogout} />
 
-      <div className="relative max-w-7xl mx-auto px-6 py-8 space-y-8">
-        <div className="bg-gradient-to-r from-ink-800 via-ink-700 to-ink-800 rounded-xl p-8 border border-amber-500/20 shadow-lg overflow-hidden relative">
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-600/20 to-transparent" />
-          </div>
-          <div className="relative z-10">
-            <h1 className="text-4xl font-bold text-cream-50 font-fraunces mb-2">
-              Welcome back, {user.username || user.email.split('@')[0]}
-            </h1>
-            <p className="text-cream-300 text-lg">
-              Your dashboard is now connected to live course and document data.
-            </p>
-          </div>
+      <div className="relative max-w-4xl mx-auto px-6 py-8 space-y-8">
+        {/* Simple greeting */}
+        <div>
+          <h1 className="text-3xl font-bold text-cream-50 font-fraunces mb-1">
+            Welcome back, {user.username || user.email.split('@')[0]}
+          </h1>
         </div>
 
         {pageError && (
@@ -122,162 +110,92 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Stat
-            icon={<BookOpen size={20} />}
-            label="Courses"
-            value={courses.length}
-          />
-          <Stat
-            icon={<TrendingUp size={20} />}
-            label="Ready Documents"
-            value={readyDocuments.length}
-          />
-          <Stat
-            icon={<Clock size={20} />}
-            label="Processing"
-            value={processingDocuments.length}
-          />
-          <Stat
-            icon={<Zap size={20} />}
-            label="Failed"
-            value={documents.filter((document) => document.processingStatus === 'failed').length}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <Card variant="gradient">
-              <CardHeader
-                description="Real courses returned by the backend profile routes."
-                title="Courses"
-              />
-              <CardContent>
-                {courses.length === 0 ? (
-                  <div className="text-center py-12">
-                    <BookOpen size={32} className="mx-auto mb-3 text-cream-400 opacity-50" />
-                    <p className="text-cream-400">No courses yet</p>
-                    <p className="text-cream-500 text-sm mt-1">
-                      Create a course to organize future uploads.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {courses.slice(0, 4).map((course) => (
-                      <div
-                        key={course.id}
-                        className="rounded-lg border border-ink-700 bg-ink-900/40 p-5"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                          <div>
-                            <h3 className="text-lg font-semibold text-cream-50 font-fraunces">
-                              {course.name}
-                            </h3>
-                            <p className="text-sm text-cream-400">
-                              {course.code ?? 'No code'} • {course.level ?? 'No level'}
-                            </p>
-                          </div>
-                          <p className="text-sm text-cream-500">
-                            Updated {formatRelativeTime(course.updatedAt)}
+        {/* Main action card */}
+        {readyDocuments.length > 0 ? (
+          // Continue Learning card (if documents exist)
+          <Card variant="gradient">
+            <CardHeader>
+              <div>
+                <p className="label-mono text-xs text-amber mb-2">Ready to learn</p>
+                <h2 className="display-md text-cream-50 font-fraunces mb-1">
+                  What would you like to study?
+                </h2>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {readyDocuments.slice(0, 3).map((document) => (
+                  <button
+                    key={document.documentId}
+                    onClick={() => router.push('/session')}
+                    className="w-full text-left p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all group"
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        <BookOpen size={20} className="text-amber mt-1 shrink-0" />
+                        <div>
+                          <h3 className="font-semibold text-cream-50">
+                            {document.fileName}
+                          </h3>
+                          <p className="text-xs text-cream-400 mt-1">
+                            Start learning from this document
                           </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter>
-                <Button
-                  onClick={() => router.push('/courses')}
-                  size="sm"
-                  variant="outline"
-                >
-                  View All Courses
-                </Button>
-                <Button
-                  onClick={() => router.push('/session')}
-                  size="sm"
-                  variant="primary"
-                >
-                  Start Session <ArrowUpRight size={16} />
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
+                      <ChevronRight size={18} className="text-cream-400 group-hover:text-amber transition-colors shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={() => router.push('/upload')}
+                size="sm"
+                variant="outline"
+              >
+                Upload more
+              </Button>
+            </CardFooter>
+          </Card>
+        ) : (
+          // Start Learning card (if no documents)
+          <Card variant="gradient">
+            <CardHeader>
+              <div>
+                <p className="label-mono text-xs text-amber mb-2">Get started</p>
+                <h2 className="display-md text-cream-50 font-fraunces">
+                  Upload your first document
+                </h2>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-cream-300 mb-6">
+                Upload a PDF or document, and we&apos;ll guide you through learning its content.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={() => router.push('/upload')}
+                size="sm"
+                variant="primary"
+              >
+                Upload document <Upload size={16} />
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
 
-          <div className="space-y-6">
-            <Card variant="elevated">
-              <CardHeader title="Quick Actions" />
-              <CardContent>
-                <div className="space-y-3">
-                  <button
-                    className="w-full p-3 rounded-lg bg-gradient-to-r from-mastery-500/20 to-mastery-600/20 border border-mastery-500/50 text-mastery-300 hover:bg-mastery-500/30 transition-all flex items-center justify-between group"
-                    onClick={() => router.push('/session')}
-                    type="button"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Zap size={18} />
-                      Start Session
-                    </span>
-                    <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <button
-                    className="w-full p-3 rounded-lg bg-gradient-to-r from-ai-blue-500/20 to-ai-blue-600/20 border border-ai-blue-500/50 text-ai-blue-300 hover:bg-ai-blue-500/30 transition-all flex items-center justify-between group"
-                    onClick={() => router.push('/upload')}
-                    type="button"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Upload size={18} />
-                      Upload Content
-                    </span>
-                    <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <button
-                    className="w-full p-3 rounded-lg bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/50 text-amber-300 hover:bg-amber-500/30 transition-all flex items-center justify-between group"
-                    onClick={() => router.push('/settings')}
-                    type="button"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Settings size={18} />
-                      Settings
-                    </span>
-                    <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card variant="glass">
-              <CardHeader
-                description="The most recent uploaded documents in your workspace."
-                title="Recent Documents"
-              />
-              <CardContent>
-                {documents.length === 0 ? (
-                  <p className="text-cream-400 text-sm">
-                    No documents uploaded yet.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {documents.slice(0, 3).map((document) => (
-                      <div
-                        key={document.documentId}
-                        className="rounded-lg border border-ink-700 bg-ink-900/40 p-4"
-                      >
-                        <p className="text-sm font-medium text-cream-50">
-                          {document.fileName}
-                        </p>
-                        <p className="text-xs text-cream-500 mt-1">
-                          {document.processingStatus} • Updated {formatRelativeTime(document.updatedAt)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+        {/* Progress snapshot - minimal and non-interactive */}
+        {readyDocuments.length > 0 && (
+          <div className="text-center text-cream-400 text-sm py-4">
+            <p>
+              {readyDocuments.length > 0 && `${readyDocuments.length} document${readyDocuments.length !== 1 ? 's' : ''} ready`}
+              {processingDocuments.length > 0 && ` • ${processingDocuments.length} processing`}
+            </p>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
