@@ -8,9 +8,6 @@ import type {
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertCircle,
-  CheckCircle2,
-  Clock3,
   FileText,
   LoaderCircle,
   Upload as UploadIcon,
@@ -406,15 +403,15 @@ export default function UploadPage() {
           </label>
         </div>
 
+        {queue.length > 0 && (
         <Card variant="gradient">
           <CardHeader
-            description="Each file moves through upload, queueing, and document processing."
-            title={`Upload Queue (${queue.length})`}
+            title={`Uploading (${queue.length})`}
           />
           <CardContent>
             {queue.length === 0 ? (
               <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-6 text-cream-400">
-                Your upload queue is empty. Add files above to begin processing.
+                No files uploading currently.
               </div>
             ) : (
               <div className="space-y-4">
@@ -527,6 +524,7 @@ export default function UploadPage() {
             </Button>
           </CardFooter>
         </Card>
+        )}
 
         <Card>
           <CardHeader
@@ -539,104 +537,38 @@ export default function UploadPage() {
                 No documents yet. Once a file finishes uploading it will appear here.
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {documents.map((document) => (
-                  <div
+                  <button
                     key={document.documentId}
-                    className="rounded-lg border border-ink-700 bg-ink-900/40 p-5"
+                    onClick={() =>
+                      document.processingStatus === 'complete' &&
+                      router.push(`/session?documentId=${document.documentId}`)
+                    }
+                    disabled={document.processingStatus !== 'complete'}
+                    className="w-full text-left rounded-lg border border-ink-700 bg-ink-900/40 p-4 hover:bg-ink-800 disabled:opacity-60 disabled:cursor-default transition-colors"
+                    type="button"
                   >
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                      <div className="space-y-2 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-cream-50 font-fraunces truncate">
-                            {document.fileName}
-                          </h3>
-                          <Badge
-                            size="sm"
-                            variant={getDocumentBadgeVariant(document.processingStatus)}
-                          >
-                            {formatDocumentStatus(document.processingStatus)}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-4 text-sm text-cream-400">
-                          <span>{formatFileSize(document.fileSize)}</span>
-                          <span>{document.fileType}</span>
-                          <span>Updated {formatRelativeTime(document.updatedAt)}</span>
-                        </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-cream-50 truncate">
+                          {document.fileName}
+                        </h3>
+                        <p className="text-xs text-cream-500 mt-1">
+                          {formatFileSize(document.fileSize)} • {formatRelativeTime(document.updatedAt)}
+                        </p>
                       </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        {document.processingStatus !== 'complete' && (
-                          <Button
-                            variant="outline"
-                            onClick={() => void deleteDocument(document.documentId)}
-                          >
-                            Delete
-                          </Button>
-                        )}
-                        {document.processingStatus === 'complete' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                router.push(`/session?documentId=${document.documentId}`)
-                              }
-                            >
-                              Session Setup
-                            </Button>
-                            <Button
-                              variant="primary"
-                              onClick={() =>
-                                router.push(`/session?documentId=${document.documentId}`)
-                              }
-                            >
-                              Start Studying
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <Badge
+                        size="sm"
+                        variant={getDocumentBadgeVariant(document.processingStatus)}
+                      >
+                        {formatDocumentStatus(document.processingStatus)}
+                      </Badge>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card variant="glass">
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                <div className="flex items-center gap-2 text-cream-300 mb-2">
-                  <Clock3 size={16} />
-                  Processing checks
-                </div>
-                <p className="text-sm text-cream-400">
-                  We automatically poll queued documents so the library updates as
-                  parsing and indexing progress.
-                </p>
-              </div>
-              <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                <div className="flex items-center gap-2 text-cream-300 mb-2">
-                  <CheckCircle2 size={16} />
-                  Session ready
-                </div>
-                <p className="text-sm text-cream-400">
-                  As soon as a document reaches the Ready state, you can launch a
-                  study session from this page or the session launcher.
-                </p>
-              </div>
-              <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                <div className="flex items-center gap-2 text-cream-300 mb-2">
-                  <AlertCircle size={16} />
-                  Failed processing
-                </div>
-                <p className="text-sm text-cream-400">
-                  If a file fails during processing, keep it in the library for
-                  debugging and re-upload a corrected version.
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
