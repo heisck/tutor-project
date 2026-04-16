@@ -1,11 +1,20 @@
 import { z } from 'zod';
 
-import { groundedChunkSchema } from './tutor-runtime.js';
+import {
+  tutorActionSchema,
+  type VoiceCommand,
+  voiceCommandSchema,
+  voiceSessionStateSchema,
+} from './session-handoff.js';
+import { groundedChunkSchema, responseEvaluationSchema } from './tutor-runtime.js';
 
 export const TUTOR_PATHS = {
   evaluate: '/api/v1/tutor/evaluate',
   next: '/api/v1/tutor/next',
   question: '/api/v1/tutor/question',
+  voiceCommand: '/api/v1/tutor/voice/command',
+  voiceSynthesize: '/api/v1/tutor/voice/synthesize',
+  voiceTranscribe: '/api/v1/tutor/voice/transcribe',
 } as const;
 
 export const startTutorStreamRequestSchema = z
@@ -45,6 +54,7 @@ export const tutorAssistantQuestionResponseSchema = z
     answer: z.string().min(1),
     currentSegmentId: z.string().min(1).nullable(),
     documentId: z.string().min(1),
+    evaluation: responseEvaluationSchema.nullable().default(null),
     groundedEvidence: z.array(groundedChunkSchema).max(3),
     outcome: tutorAssistantOutcomeSchema,
     understandingCheck: z.string().min(1).nullable(),
@@ -161,6 +171,80 @@ export const tutorStreamEventSchema = z.discriminatedUnion('type', [
 ]);
 export type TutorStreamEvent = z.infer<typeof tutorStreamEventSchema>;
 
+export const tutorVoiceTranscriptionRequestSchema = z
+  .object({
+    audioBase64: z.string().trim().min(1, 'audioBase64 is required'),
+    mimeType: z
+      .string()
+      .trim()
+      .min(1, 'mimeType is required')
+      .max(100, 'mimeType must be 100 characters or fewer'),
+    sessionId: z.string().trim().min(1, 'sessionId is required'),
+  })
+  .strict();
+export type TutorVoiceTranscriptionRequest = z.infer<
+  typeof tutorVoiceTranscriptionRequestSchema
+>;
+
+export const tutorVoiceTranscriptionResponseSchema = z
+  .object({
+    transcript: z.string().min(1),
+    voiceState: voiceSessionStateSchema,
+  })
+  .strict();
+export type TutorVoiceTranscriptionResponse = z.infer<
+  typeof tutorVoiceTranscriptionResponseSchema
+>;
+
+export const tutorVoiceSynthesisRequestSchema = z
+  .object({
+    playbackRate: z.number().min(0.5).max(2).optional(),
+    sessionId: z.string().trim().min(1, 'sessionId is required'),
+    text: z
+      .string()
+      .trim()
+      .min(1, 'text is required')
+      .max(4000, 'text must be 4000 characters or fewer'),
+  })
+  .strict();
+export type TutorVoiceSynthesisRequest = z.infer<
+  typeof tutorVoiceSynthesisRequestSchema
+>;
+
+export const tutorVoiceSynthesisResponseSchema = z
+  .object({
+    audioBase64: z.string().min(1),
+    contentType: z.string().min(1),
+    playbackRate: z.number().min(0.5).max(2),
+    voiceState: voiceSessionStateSchema,
+  })
+  .strict();
+export type TutorVoiceSynthesisResponse = z.infer<
+  typeof tutorVoiceSynthesisResponseSchema
+>;
+
+export const tutorVoiceCommandRequestSchema = z
+  .object({
+    command: voiceCommandSchema,
+    sessionId: z.string().trim().min(1, 'sessionId is required'),
+  })
+  .strict();
+export type TutorVoiceCommandRequest = z.infer<
+  typeof tutorVoiceCommandRequestSchema
+>;
+
+export const tutorVoiceCommandResponseSchema = z
+  .object({
+    appliedCommand: voiceCommandSchema,
+    nextAction: tutorActionSchema,
+    responseText: z.string().min(1),
+    voiceState: voiceSessionStateSchema,
+  })
+  .strict();
+export type TutorVoiceCommandResponse = z.infer<
+  typeof tutorVoiceCommandResponseSchema
+>;
+
 export function getTutorStreamEventName(
   type: TutorStreamEvent['type'],
 ): string {
@@ -196,4 +280,31 @@ export function serializeTutorStreamEvents(
   events: readonly TutorStreamEvent[],
 ): string {
   return events.map((event) => serializeTutorStreamEvent(event)).join('');
+}
+
+export function normalizeVoiceCommandText(value: string): VoiceCommand | null {
+  const normalized = value.trim().toLowerCase();
+
+  switch (normalized) {
+    case 'pause':
+      return 'pause';
+    case 'continue':
+      return 'continue';
+    case 'slower':
+      return 'slower';
+    case 'repeat':
+      return 'repeat';
+    case 'simpler':
+      return 'simpler';
+    case 'example':
+      return 'example';
+    case 'go back':
+    case 'go_back':
+      return 'go_back';
+    case 'test me':
+    case 'test_me':
+      return 'test_me';
+    default:
+      return null;
+  }
 }

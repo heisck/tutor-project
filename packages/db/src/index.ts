@@ -7,6 +7,7 @@ export {
   AtuDifficulty,
   AuthProvider,
   type AiRuntimeUsage,
+  CoverageResolutionStatus,
   CoverageStatus,
   DocumentAssetKind,
   DocumentProcessingStatus,

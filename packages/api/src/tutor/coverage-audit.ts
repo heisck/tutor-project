@@ -24,11 +24,15 @@ export function auditSessionCoverage(
   segments: readonly LessonSegmentRecord[],
   masteryRecords: ReadonlyMap<string, ConceptMasteryRecord>,
 ): CoverageAuditResult {
+  const uniqueAtuIds = [...new Set(segments.flatMap((segment) => segment.atuIds))];
   let masteredCount = 0;
+  let checkedCount = 0;
   let partialCount = 0;
+  let resolvedAtuCount = 0;
   let taughtCount = 0;
   let weakCount = 0;
   const unresolvedConceptIds: string[] = [];
+  const unresolvedAtuIds = new Set<string>();
 
   for (const segment of segments) {
     const mastery = masteryRecords.get(segment.conceptId);
@@ -37,21 +41,30 @@ export function auditSessionCoverage(
     switch (status) {
       case 'mastered':
         masteredCount += 1;
+        resolvedAtuCount += segment.atuIds.length;
         break;
       case 'checked':
+        checkedCount += 1;
+        segment.atuIds.forEach((atuId) => unresolvedAtuIds.add(atuId));
+        unresolvedConceptIds.push(segment.conceptId);
+        break;
       case 'partial':
         partialCount += 1;
+        segment.atuIds.forEach((atuId) => unresolvedAtuIds.add(atuId));
         unresolvedConceptIds.push(segment.conceptId);
         break;
       case 'taught':
         taughtCount += 1;
+        segment.atuIds.forEach((atuId) => unresolvedAtuIds.add(atuId));
         unresolvedConceptIds.push(segment.conceptId);
         break;
       case 'weak':
         weakCount += 1;
+        segment.atuIds.forEach((atuId) => unresolvedAtuIds.add(atuId));
         unresolvedConceptIds.push(segment.conceptId);
         break;
       case 'not_taught':
+        segment.atuIds.forEach((atuId) => unresolvedAtuIds.add(atuId));
         unresolvedConceptIds.push(segment.conceptId);
         break;
     }
@@ -62,11 +75,15 @@ export function auditSessionCoverage(
 
   return {
     canComplete,
+    checkedCount,
     masteredCount,
     partialCount,
+    resolvedAtuCount,
     taughtCount,
     totalConcepts,
+    totalAtus: uniqueAtuIds.length,
     unresolvedConceptIds,
+    unresolvedAtuIds: [...unresolvedAtuIds],
     weakCount,
   };
 }

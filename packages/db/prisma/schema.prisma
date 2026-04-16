@@ -82,6 +82,11 @@ enum CoverageStatus {
   ASSESSED
 }
 
+enum CoverageResolutionStatus {
+  UNRESOLVED
+  RESOLVED
+}
+
 enum StudySessionMode {
   FULL
   SUMMARY
@@ -175,6 +180,7 @@ model User {
   studySessions    StudySession[]
   aiRuntimeUsages  AiRuntimeUsage[]
   learningProfile  LearningProfile?
+  conceptReviewStates ConceptReviewState[]
 
   @@index([institutionId])
 }
@@ -222,6 +228,7 @@ model Course {
   name      String
   code      String?
   level     String?
+  examDate  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   documents Document[]
@@ -261,6 +268,7 @@ model Document {
   userFeedback          UserFeedback[]
   feedbackAlerts        FeedbackAlert[]
   aiRuntimeUsages       AiRuntimeUsage[]
+  conceptReviewStates   ConceptReviewState[]
 
   @@index([courseId])
   @@index([processingStatus])
@@ -411,6 +419,7 @@ model Concept {
   feedbackAlerts   FeedbackAlert[]
   prerequisiteFor  ConceptPrerequisite[] @relation("PrerequisiteConcept")
   dependsOn        ConceptPrerequisite[] @relation("DependentConcept")
+  reviewStates     ConceptReviewState[]
 
   @@index([documentId])
   @@index([userId])
@@ -458,6 +467,9 @@ model CoverageLedger {
   userId    String
   atuId     String
   status    CoverageStatus @default(NOT_TAUGHT)
+  taughtAt  DateTime?
+  checkedAt DateTime?
+  resolutionStatus CoverageResolutionStatus @default(UNRESOLVED)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   document  Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -465,9 +477,33 @@ model CoverageLedger {
   atu       AtomicTeachableUnit @relation(fields: [atuId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
+  @@index([resolutionStatus])
   @@index([userId])
   @@index([atuId])
   @@unique([documentId, atuId])
+}
+
+model ConceptReviewState {
+  id              String   @id @default(cuid())
+  userId          String
+  documentId      String
+  conceptId       String
+  nextReviewAt    DateTime?
+  lastReviewedAt  DateTime?
+  stabilityScore  Float    @default(0.3)
+  difficultyScore Float    @default(0.5)
+  reviewCount     Int      @default(0)
+  lapseCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  concept         Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@index([conceptId])
+  @@index([documentId, nextReviewAt])
+  @@index([userId, nextReviewAt])
+  @@unique([userId, conceptId])
 }
 
 model StudySession {
@@ -539,6 +575,9 @@ model LessonSegment {
   checkPrompt           String
   masteryGate           Json
   coverageSummary       Json
+  selectionReason       String                           @default("prerequisite_order")
+  reviewPriority        Float?
+  checkTypeBias         String[]                         @default([])
   atuIds                String[]
   sourceUnitIds         String[]
   chunkIds              String[]
@@ -573,6 +612,8 @@ model SessionHandoffSnapshot {
   masterySnapshot    Json
   unresolvedAtuIds   String[]
   explanationHistory Json
+  turnState          Json
+  voiceState         Json
   resumeNotes        String?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt

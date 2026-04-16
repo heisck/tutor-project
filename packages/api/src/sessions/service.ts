@@ -183,6 +183,7 @@ export async function createStudySessionForOwnedDocument(
     const teachingPlan = await persistTeachingPlanForSession(transaction, {
       documentId: document.id,
       learningProfile,
+      mode: input.mode,
       sessionId: createdSession.id,
       userId: input.userId,
     });
@@ -198,7 +199,7 @@ export async function createStudySessionForOwnedDocument(
       sessionId: createdSession.id,
       userId: input.userId,
     });
-  });
+  }, { timeout: 30000 });
 }
 
 export async function transitionOwnedStudySession(

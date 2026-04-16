@@ -286,7 +286,7 @@ export async function generateConceptGraph(
         });
       }
     }
-  });
+  }, { timeout: 30000 });
 
   return {
     conceptCount: validConcepts.length,

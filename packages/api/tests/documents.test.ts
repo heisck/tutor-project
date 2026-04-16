@@ -121,6 +121,29 @@ describe('document records and processing status', () => {
     });
   });
 
+  it('lists only the authenticated user documents', async () => {
+    const { csrfToken: csrfListA } = await signUp(agent, 'document-list-a');
+    const firstFinishResponse = await completeUpload(
+      agent,
+      csrfListA,
+      'document-list-a.pdf',
+    );
+
+    const secondAgent = request.agent(app.server);
+    const { csrfToken: csrfListB } = await signUp(secondAgent, 'document-list-b');
+    await completeUpload(secondAgent, csrfListB, 'document-list-b.pdf');
+
+    const response = await agent.get('/api/v1/documents');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0]).toMatchObject({
+      documentId: firstFinishResponse.body.document.id,
+      fileName: 'document-list-a.pdf',
+      processingStatus: 'queued',
+    });
+  });
+
   it('rejects cross-user document status access', async () => {
     const { csrfToken: csrfA } = await signUp(agent, 'cross-user-a');
     const firstFinishResponse = await completeUpload(agent, csrfA, 'cross-user-a.pdf');

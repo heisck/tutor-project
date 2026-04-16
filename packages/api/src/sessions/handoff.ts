@@ -218,8 +218,10 @@ async function persistOwnedSessionHandoffSnapshot(
       masterySnapshot: toJsonValue(snapshot.masterySnapshot),
       resumeNotes: snapshot.resumeNotes,
       studySessionId: session.id,
+      turnState: toJsonValue(snapshot.turnState),
       unresolvedAtuIds: snapshot.unresolvedAtuIds,
       userId: input.userId,
+      voiceState: toJsonValue(snapshot.voiceState),
     },
     update: {
       currentSectionId: snapshot.currentSectionId,
@@ -228,7 +230,9 @@ async function persistOwnedSessionHandoffSnapshot(
       explanationHistory: toJsonValue(snapshot.explanationHistory),
       masterySnapshot: toJsonValue(snapshot.masterySnapshot),
       resumeNotes: snapshot.resumeNotes,
+      turnState: toJsonValue(snapshot.turnState),
       unresolvedAtuIds: snapshot.unresolvedAtuIds,
+      voiceState: toJsonValue(snapshot.voiceState),
     },
     where: {
       studySessionId: session.id,
@@ -348,10 +352,18 @@ async function buildValidatedSnapshot(
       input.snapshot.resumeNotes ??
       input.existingSnapshot?.resumeNotes ??
       null,
+    turnState:
+      input.snapshot.turnState ??
+      input.existingSnapshot?.turnState ??
+      {},
     unresolvedAtuIds:
       input.snapshot.unresolvedAtuIds ??
       input.existingSnapshot?.unresolvedAtuIds ??
       [],
+    voiceState:
+      input.snapshot.voiceState ??
+      input.existingSnapshot?.voiceState ??
+      {},
   });
 }
 
@@ -391,7 +403,9 @@ function toSessionHandoffSnapshotRecord(
     masterySnapshot: snapshot.masterySnapshot,
     resumeNotes: snapshot.resumeNotes,
     sessionId: snapshot.studySessionId,
+    turnState: snapshot.turnState,
     unresolvedAtuIds: snapshot.unresolvedAtuIds,
     updatedAt: snapshot.updatedAt.toISOString(),
+    voiceState: snapshot.voiceState,
   });
 }

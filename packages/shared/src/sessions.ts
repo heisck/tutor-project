@@ -1,4 +1,5 @@
 import type {
+  LessonSegmentSelectionReason,
   LessonSegmentCoverageSummary,
   TeachingPlanRecord,
 } from './lesson-plan.js';
@@ -7,6 +8,7 @@ import type {
   MiniCalibrationInput,
 } from './learning-profile.js';
 import type {
+  VoiceSessionState,
   SessionHandoffSnapshotRecord,
   SessionMasterySnapshotItem,
 } from './session-handoff.js';
@@ -95,10 +97,37 @@ export interface StudySessionSummary {
   unresolvedTopics: string[];
 }
 
+export interface AtuAuditSummary {
+  checkedCount: number;
+  resolvedCount: number;
+  taughtCount: number;
+  totalCount: number;
+  unresolvedCount: number;
+}
+
+export interface StudySessionModeContext {
+  activeMode: StudySessionMode;
+  checkTypeBias: string[];
+  currentSelectionReason: LessonSegmentSelectionReason;
+  degradedReason: string | null;
+  queueCursor: number;
+  queuePreview: Array<{
+    conceptId: string;
+    conceptTitle: string;
+    segmentId: string;
+    selectionReason: LessonSegmentSelectionReason;
+  }>;
+  queueSize: number;
+  reviewPriority: number | null;
+  voiceState: VoiceSessionState | null;
+}
+
 export interface StudySessionStateResponse {
+  atuAuditSummary: AtuAuditSummary;
   continuity: StudySessionContinuityState;
   handoffSnapshot: SessionHandoffSnapshotRecord | null;
   learningProfile: LearningProfileSummary | null;
+  modeContext: StudySessionModeContext;
   session: StudySessionRecord;
   summary: StudySessionSummary;
   teachingPlan: TeachingPlanRecord;

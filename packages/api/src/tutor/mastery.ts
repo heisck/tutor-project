@@ -1,4 +1,8 @@
-import { CoverageStatus, type DatabaseClient } from '@ai-tutor-pwa/db';
+import {
+  CoverageResolutionStatus,
+  CoverageStatus,
+  type DatabaseClient,
+} from '@ai-tutor-pwa/db';
 import type {
   CheckQuestionType,
   ConceptMasteryRecord,
@@ -157,14 +161,18 @@ export async function persistCoverageStatusUpdate(
   input: {
     atuIds: readonly string[];
     documentId: string;
+    now?: Date;
     status: CoverageStatus;
     userId: string;
   },
 ): Promise<void> {
   if (input.atuIds.length === 0) return;
 
+  const now = input.now ?? new Date();
+  const coverageUpdate = buildCoverageLedgerUpdate(input.status, now);
+
   await prisma.coverageLedger.updateMany({
-    data: { status: input.status },
+    data: coverageUpdate,
     where: {
       atuId: { in: [...input.atuIds] },
       documentId: input.documentId,
@@ -249,6 +257,75 @@ export function validateMasteryGate(
   };
 }
 
+export async function updateConceptReviewState(
+  prisma: Pick<DatabaseClient, 'conceptReviewState'>,
+  input: {
+    conceptId: string;
+    documentId: string;
+    evaluation: ResponseEvaluation;
+    masteryStatus: SessionMasteryStatus;
+    now?: Date;
+    userId: string;
+  },
+): Promise<void> {
+  const now = input.now ?? new Date();
+  const existingState = await prisma.conceptReviewState.findUnique({
+    where: {
+      userId_conceptId: {
+        conceptId: input.conceptId,
+        userId: input.userId,
+      },
+    },
+  });
+
+  const previousReviewCount = existingState?.reviewCount ?? 0;
+  const previousStability = existingState?.stabilityScore ?? 0.3;
+  const previousDifficulty = existingState?.difficultyScore ?? 0.5;
+  const lapseIncrement =
+    input.masteryStatus === 'weak' || input.masteryStatus === 'partial' ? 1 : 0;
+  const nextReviewCount = previousReviewCount + 1;
+  const nextStability = clamp(
+    input.masteryStatus === 'mastered'
+      ? previousStability + 0.15
+      : previousStability - 0.1,
+    0.1,
+    1,
+  );
+  const nextDifficulty = clamp(
+    (previousDifficulty + input.evaluation.confusionScore) / 2,
+    0,
+    1,
+  );
+
+  await prisma.conceptReviewState.upsert({
+    create: {
+      conceptId: input.conceptId,
+      difficultyScore: nextDifficulty,
+      documentId: input.documentId,
+      lapseCount: lapseIncrement,
+      lastReviewedAt: now,
+      nextReviewAt: computeNextReviewAt(now, nextStability, nextReviewCount, input.masteryStatus),
+      reviewCount: nextReviewCount,
+      stabilityScore: nextStability,
+      userId: input.userId,
+    },
+    update: {
+      difficultyScore: nextDifficulty,
+      lapseCount: (existingState?.lapseCount ?? 0) + lapseIncrement,
+      lastReviewedAt: now,
+      nextReviewAt: computeNextReviewAt(now, nextStability, nextReviewCount, input.masteryStatus),
+      reviewCount: nextReviewCount,
+      stabilityScore: nextStability,
+    },
+    where: {
+      userId_conceptId: {
+        conceptId: input.conceptId,
+        userId: input.userId,
+      },
+    },
+  });
+}
+
 function mapMasteryToCoverageStatus(
   masteryStatus: SessionMasteryStatus,
   previousStatus: SessionMasteryStatus,
@@ -270,4 +347,54 @@ function mapMasteryToCoverageStatus(
     default:
       return null;
   }
+}
+
+function buildCoverageLedgerUpdate(status: CoverageStatus, now: Date) {
+  switch (status) {
+    case CoverageStatus.NOT_TAUGHT:
+      return {
+        checkedAt: null,
+        resolutionStatus: CoverageResolutionStatus.UNRESOLVED,
+        status,
+        taughtAt: null,
+      };
+    case CoverageStatus.TAUGHT:
+      return {
+        resolutionStatus: CoverageResolutionStatus.UNRESOLVED,
+        status,
+        taughtAt: now,
+      };
+    case CoverageStatus.IN_PROGRESS:
+      return {
+        checkedAt: now,
+        resolutionStatus: CoverageResolutionStatus.UNRESOLVED,
+        status,
+        taughtAt: now,
+      };
+    case CoverageStatus.ASSESSED:
+      return {
+        checkedAt: now,
+        resolutionStatus: CoverageResolutionStatus.RESOLVED,
+        status,
+        taughtAt: now,
+      };
+  }
+}
+
+function computeNextReviewAt(
+  now: Date,
+  stabilityScore: number,
+  reviewCount: number,
+  masteryStatus: SessionMasteryStatus,
+): Date {
+  const baseDays =
+    masteryStatus === 'mastered'
+      ? Math.max(1, Math.round(stabilityScore * Math.max(reviewCount, 1) * 4))
+      : 1;
+
+  return new Date(now.getTime() + baseDays * 24 * 60 * 60 * 1000);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

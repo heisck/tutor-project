@@ -1,8 +1,21 @@
 import { buildApp } from './app.js';
 import { loadApiEnv } from './config/env.js';
+import {
+  DevInMemoryR2StorageClient,
+  shouldUseDevStorage,
+} from './dev-storage.js';
 
 const env = loadApiEnv();
-const app = await buildApp({ env });
+
+// Use in-memory storage for development if R2 is not properly configured
+const uploadStorageClient = shouldUseDevStorage(env.R2_ENDPOINT)
+  ? new DevInMemoryR2StorageClient()
+  : undefined;
+
+const app = await buildApp({
+  env,
+  ...(uploadStorageClient === undefined ? {} : { uploadStorageClient }),
+});
 
 try {
   await app.listen({

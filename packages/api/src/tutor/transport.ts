@@ -4,15 +4,23 @@ import { Readable } from 'node:stream';
 import type { DatabaseClient } from '@ai-tutor-pwa/db';
 import {
   serializeTutorStreamEvent,
+  type TutorAction,
   type TutorStreamEvent,
   type TutorStreamMessagePayload,
 } from '@ai-tutor-pwa/shared';
 import type { FastifyRequest } from 'fastify';
 
+import { retrieveChunksByText } from '../knowledge/retrieval.js';
 import {
   getOwnedStudySessionState,
   StudySessionStateProjectionError,
 } from '../sessions/state.js';
+import { loadMasteryRecordsFromState } from './mastery.js';
+import { orchestrateTutorNextStep } from './orchestrator.js';
+import {
+  createFallbackTutorAiProvider,
+  type TutorAiProvider,
+} from './provider.js';
 
 export class TutorStreamTransportError extends Error {
   public constructor(message: string) {
@@ -22,23 +30,33 @@ export class TutorStreamTransportError extends Error {
 }
 
 export interface OwnedTutorEventStreamBuildResult {
+  decisionAction: TutorAction;
+  degradedReason: string | null;
   documentId: string;
   events: readonly TutorStreamEvent[];
+  nextSegmentId: string | null;
+  providerCallCount: number;
   sessionId: string;
 }
 
 export async function buildOwnedTutorStreamEvents(
   prisma: Pick<
     DatabaseClient,
-    'coverageLedger' | 'lessonSegment' | 'sessionHandoffSnapshot' | 'studySession'
+    | 'coverageLedger'
+    | 'documentChunk'
+    | 'lessonSegment'
+    | 'sessionHandoffSnapshot'
+    | 'studySession'
   >,
   input: {
     now?: Date;
+    provider?: TutorAiProvider;
     sessionId: string;
     userId: string;
   },
 ): Promise<OwnedTutorEventStreamBuildResult | null> {
   const now = input.now ?? new Date();
+  const provider = input.provider ?? createFallbackTutorAiProvider();
   const sessionState = await getOwnedStudySessionState(prisma, {
     sessionId: input.sessionId,
     userId: input.userId,
@@ -62,9 +80,32 @@ export async function buildOwnedTutorStreamEvents(
     );
   }
 
+  const masteryRecords = loadMasteryRecordsFromState(
+    sessionState.teachingPlan.segments,
+    sessionState.handoffSnapshot?.masterySnapshot ?? [],
+  );
+  const retrievalQuery = [
+    currentSegment.conceptTitle,
+    currentSegment.conceptDescription,
+    currentSegment.checkPrompt,
+  ].join(' ');
+  const retrievalResult = await retrieveChunksByText(prisma as DatabaseClient, {
+    documentId: sessionState.session.documentId,
+    query: retrievalQuery,
+    topK: Math.max(currentSegment.chunkIds.length, 3),
+    userId: input.userId,
+  });
+  const orchestration = orchestrateTutorNextStep({
+    masteryRecords,
+    retrievedChunks: retrievalResult.chunks,
+    sessionState,
+  });
+  const generatedMessage = await provider.generateTutorMessage(
+    orchestration.promptContext,
+  );
   const connectionId = randomUUID();
   const messagePayload: TutorStreamMessagePayload = {
-    content: buildInitialTutorMessage(currentSegment),
+    content: generatedMessage.text,
     format: 'markdown',
     messageId: buildTutorMessageId(
       sessionState.session.id,
@@ -76,6 +117,8 @@ export async function buildOwnedTutorStreamEvents(
   };
 
   return {
+    decisionAction: orchestration.decision.action,
+    degradedReason: generatedMessage.degradedReason,
     documentId: sessionState.session.documentId,
     events: [
       {
@@ -121,6 +164,11 @@ export async function buildOwnedTutorStreamEvents(
         type: 'completion',
       },
     ],
+    nextSegmentId:
+      orchestration.decision.action === 'advance'
+        ? resolveNextSegmentId(sessionState.teachingPlan.segments, currentSegment.id)
+        : currentSegment.id,
+    providerCallCount: generatedMessage.providerCallCount,
     sessionId: sessionState.session.id,
   };
 }
@@ -153,18 +201,6 @@ export function createTutorEventStream(
   );
 }
 
-function buildInitialTutorMessage(
-  currentSegment: NonNullable<
-    Awaited<ReturnType<typeof getOwnedStudySessionState>>
-  >['teachingPlan']['segments'][number],
-): string {
-  return [
-    `Let's begin with ${currentSegment.conceptTitle}.`,
-    currentSegment.analogyPrompt,
-    `When you're ready, check yourself with: ${currentSegment.checkPrompt}`,
-  ].join('\n\n');
-}
-
 function buildTutorMessageId(
   sessionId: string,
   segmentId: string,
@@ -179,6 +215,7 @@ function resolveCurrentSegment(
   >,
 ) {
   const currentSegmentId =
+    sessionState.handoffSnapshot?.currentSegmentId ??
     sessionState.session.currentSegmentId ??
     sessionState.teachingPlan.currentSegmentId;
 
@@ -190,6 +227,25 @@ function resolveCurrentSegment(
     sessionState.teachingPlan.segments.find(
       (segment) => segment.id === currentSegmentId,
     ) ?? null
+  );
+}
+
+function resolveNextSegmentId(
+  segments: readonly {
+    id: string;
+    ordinal: number;
+  }[],
+  currentSegmentId: string,
+): string | null {
+  const currentSegment = segments.find((segment) => segment.id === currentSegmentId);
+
+  if (currentSegment === undefined) {
+    return null;
+  }
+
+  return (
+    segments.find((segment) => segment.ordinal === currentSegment.ordinal + 1)?.id ??
+    currentSegment.id
   );
 }
 

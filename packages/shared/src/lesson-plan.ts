@@ -35,9 +35,25 @@ export type LessonSegmentCoverageSummary = z.infer<
   typeof lessonSegmentCoverageSummarySchema
 >;
 
+export const lessonSegmentSelectionReasonSchema = z.enum([
+  'prerequisite_order',
+  'question_first',
+  'exam_priority',
+  'review_due',
+  'difficult_part_focus',
+  'summary_pass',
+  'flashcard_seed',
+  'image_focus',
+  'voice_guided',
+]);
+export type LessonSegmentSelectionReason = z.infer<
+  typeof lessonSegmentSelectionReasonSchema
+>;
+
 export const lessonSegmentSchema = z.object({
   analogyPrompt: z.string().min(1),
   atuIds: z.array(z.string().min(1)).min(1),
+  checkTypeBias: z.array(masteryQuestionTypeSchema),
   checkPrompt: z.string().min(1),
   chunkIds: z.array(z.string().min(1)).min(1),
   conceptDescription: z.string().min(1),
@@ -49,6 +65,8 @@ export const lessonSegmentSchema = z.object({
   masteryGate: masteryGateSchema,
   ordinal: z.number().int().nonnegative(),
   prerequisiteConceptIds: z.array(z.string().min(1)),
+  reviewPriority: z.number().min(0).max(1).nullable(),
+  selectionReason: lessonSegmentSelectionReasonSchema,
   sectionId: z.string().min(1).nullable(),
   sourceOrdinal: z.number().int().nonnegative(),
   sourceUnitIds: z.array(z.string().min(1)).min(1),

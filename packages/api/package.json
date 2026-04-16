@@ -7,12 +7,13 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "dotenv -e ../../.env.local -- tsx watch src/index.ts",
+    "dev": "dotenv -e ../../.env.local -- tsx watch src/dev.ts",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --ignore-pattern \"src/**/*.d.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "start": "dotenv -e ../../.env.local -- node dist/index.js"
+    "start": "dotenv -e ../../.env.local -- node dist/index.js",
+    "start:worker": "dotenv -e ../../.env.local -- node dist/documents/worker-entry.js"
   },
   "dependencies": {
     "@ai-tutor-pwa/db": "*",

@@ -13,13 +13,20 @@ import {
   lessonExplanationStrategySchema,
   masteryGateSchema,
   teachingPlanSchema,
+  type LessonSegmentSelectionReason,
   type LessonSegmentCoverageSummary,
   type LessonSegmentRecord,
   type MasteryGate,
   type MasteryQuestionType,
+  type StudySessionMode,
   type TeachingPlanRecord,
 } from '@ai-tutor-pwa/shared';
 
+import {
+  buildModeExecutionPlan,
+  type ModeExecutionPlanEntry,
+  type ModeExecutionReviewState,
+} from './mode-execution.js';
 import { validateKnowledgeGraphIntegrity } from '../knowledge/coverage-ledger.js';
 
 export class StudySessionPlanningError extends Error {
@@ -35,7 +42,9 @@ export class StudySessionPlanningError extends Error {
 type SessionPlanningClient = Pick<
   DatabaseClient,
   | 'concept'
+  | 'conceptReviewState'
   | 'coverageLedger'
+  | 'document'
   | 'lessonSegment'
   | 'studySession'
   | 'atomicTeachableUnit'
@@ -68,6 +77,7 @@ type SessionPlanningConcept = Prisma.ConceptGetPayload<{
 interface PlannedSegment {
   analogyPrompt: string;
   atuIds: string[];
+  checkTypeBias: MasteryQuestionType[];
   checkPrompt: string;
   chunkIds: string[];
   conceptDescription: string;
@@ -78,6 +88,8 @@ interface PlannedSegment {
   masteryGate: MasteryGate;
   ordinal: number;
   prerequisiteConceptIds: string[];
+  reviewPriority: number | null;
+  selectionReason: LessonSegmentSelectionReason;
   sectionId: string | null;
   sourceOrdinal: number;
   sourceUnitIds: string[];
@@ -88,6 +100,7 @@ export async function persistTeachingPlanForSession(
   input: {
     documentId: string;
     learningProfile: LearningProfile;
+    mode: StudySessionMode;
     sessionId: string;
     userId: string;
   },
@@ -97,7 +110,7 @@ export async function persistTeachingPlanForSession(
     userId: input.userId,
   });
 
-  const [concepts, coverageEntries] = await Promise.all([
+  const [concepts, coverageEntries, document, reviewStates] = await Promise.all([
     prisma.concept.findMany({
       include: {
         atus: {
@@ -136,6 +149,25 @@ export async function persistTeachingPlanForSession(
         userId: input.userId,
       },
     }),
+    prisma.document.findFirst({
+      select: {
+        course: {
+          select: {
+            examDate: true,
+          },
+        },
+      },
+      where: {
+        id: input.documentId,
+        userId: input.userId,
+      },
+    }),
+    prisma.conceptReviewState.findMany({
+      where: {
+        documentId: input.documentId,
+        userId: input.userId,
+      },
+    }),
   ]);
 
   const violations: string[] = [];
@@ -156,8 +188,41 @@ export async function persistTeachingPlanForSession(
     coverageEntries.map((entry) => [entry.atuId, entry.status]),
   );
   const orderedConcepts = orderConceptsForTeaching(concepts);
-  const plannedSegments = orderedConcepts.map((concept, ordinal) =>
-    buildPlannedSegment(concept, ordinal, coverageByAtuId, input.learningProfile),
+  const dependentCountByConceptId = buildDependentCountByConceptId(orderedConcepts);
+  const reviewStateByConceptId = new Map<string, ModeExecutionReviewState>(
+    reviewStates.map((reviewState) => [
+      reviewState.conceptId,
+      {
+        difficultyScore: reviewState.difficultyScore,
+        lapseCount: reviewState.lapseCount,
+        nextReviewAt: reviewState.nextReviewAt,
+        reviewCount: reviewState.reviewCount,
+        stabilityScore: reviewState.stabilityScore,
+      },
+    ]),
+  );
+  const modeExecutionPlan = buildModeExecutionPlan({
+    dependentCountByConceptId,
+    examDate: document?.course?.examDate ?? null,
+    items: orderedConcepts.map((concept) => ({
+      concept,
+      conceptId: concept.id,
+      ordinal: concept.ordinal,
+      prerequisiteConceptIds: concept.dependsOn
+        .map((dependency) => dependency.prerequisiteId)
+        .sort(),
+    })),
+    mode: input.mode,
+    reviewStateByConceptId,
+  });
+  const plannedSegments = modeExecutionPlan.map((entry, ordinal) =>
+    buildPlannedSegment(
+      entry,
+      ordinal,
+      coverageByAtuId,
+      input.learningProfile,
+      input.mode,
+    ),
   );
 
   await prisma.lessonSegment.deleteMany({
@@ -180,11 +245,14 @@ export async function persistTeachingPlanForSession(
         conceptId: segment.conceptId,
         conceptTitle: segment.conceptTitle,
         coverageSummary: toCoverageSummaryJson(segment.coverageSummary),
+        checkTypeBias: segment.checkTypeBias,
         documentId: input.documentId,
         explanationStrategy: segment.explanationStrategy,
         masteryGate: toMasteryGateJson(segment.masteryGate),
         ordinal: segment.ordinal,
         prerequisiteConceptIds: segment.prerequisiteConceptIds,
+        reviewPriority: segment.reviewPriority,
+        selectionReason: segment.selectionReason,
         sectionId: segment.sectionId,
         sourceOrdinal: segment.sourceOrdinal,
         sourceUnitIds: segment.sourceUnitIds,
@@ -306,11 +374,19 @@ function orderConceptsForTeaching(
 }
 
 function buildPlannedSegment(
-  concept: SessionPlanningConcept,
+  planEntry: ModeExecutionPlanEntry<{
+    concept: SessionPlanningConcept;
+    conceptId: string;
+    ordinal: number;
+    prerequisiteConceptIds: readonly string[];
+  }>,
   ordinal: number,
   coverageByAtuId: ReadonlyMap<string, CoverageStatus>,
   learningProfile: LearningProfile,
+  mode: StudySessionMode,
 ): PlannedSegment {
+  const concept = planEntry.item.concept;
+
   if (concept.atus.length === 0) {
     throw new StudySessionPlanningError([
       `Concept "${concept.title}" does not contain any ATUs`,
@@ -364,9 +440,12 @@ function buildPlannedSegment(
       learningProfile.academicLevel,
     ),
     atuIds: concept.atus.map((atu) => atu.id),
+    checkTypeBias: [...planEntry.checkTypeBias],
     checkPrompt: buildCheckPrompt(
       concept.title,
       learningProfile.studyGoalPreference,
+      mode,
+      planEntry.selectionReason,
     ),
     chunkIds,
     conceptDescription: concept.description,
@@ -376,11 +455,13 @@ function buildPlannedSegment(
     explanationStrategy: toPrismaExplanationStrategy(
       learningProfile.explanationStartPreference,
     ),
-    masteryGate: buildMasteryGate(learningProfile.studyGoalPreference),
+    masteryGate: buildMasteryGate(learningProfile.studyGoalPreference, mode),
     ordinal,
     prerequisiteConceptIds: concept.dependsOn
       .map((dependency) => dependency.prerequisiteId)
       .sort(),
+    reviewPriority: planEntry.reviewPriority,
+    selectionReason: planEntry.selectionReason,
     sectionId: concept.atus[0]?.sourceUnit.sectionId ?? null,
     sourceOrdinal: concept.atus[0]?.ordinal ?? concept.ordinal,
     sourceUnitIds,
@@ -415,7 +496,25 @@ function buildAnalogyPrompt(
 function buildCheckPrompt(
   conceptTitle: string,
   studyGoal: LearningProfile['studyGoalPreference'],
+  mode: StudySessionMode,
+  selectionReason: LessonSegmentSelectionReason,
 ): string {
+  if (mode === 'quiz') {
+    return `Start by checking ${conceptTitle} with a focused learner-generated question before reteaching if needed.`;
+  }
+
+  if (mode === 'exam') {
+    return `Use an exam-style transfer or error-spotting prompt for ${conceptTitle}, then ask the learner to explain their reasoning.`;
+  }
+
+  if (mode === 'revision' || mode === 'difficult_parts') {
+    return `Recheck ${conceptTitle} quickly, target the weak point, and confirm whether the learner can still explain it clearly.`;
+  }
+
+  if (selectionReason === 'voice_guided') {
+    return `Ask a short voice-friendly check for ${conceptTitle} that can be answered aloud in one or two sentences.`;
+  }
+
   switch (studyGoal) {
     case PrismaStudyGoalPreference.BUILD_PROJECT:
       return `Describe how you would apply ${conceptTitle} while building something real.`;
@@ -430,8 +529,21 @@ function buildCheckPrompt(
 
 function buildMasteryGate(
   studyGoal: LearningProfile['studyGoalPreference'],
+  mode: StudySessionMode,
 ): MasteryGate {
   const requiredQuestionTypes: readonly MasteryQuestionType[] = (() => {
+    if (mode === 'exam') {
+      return ['explanation', 'transfer', 'error_spotting'];
+    }
+
+    if (mode === 'quiz') {
+      return ['explanation', 'application'];
+    }
+
+    if (mode === 'revision' || mode === 'difficult_parts') {
+      return ['explanation', 'transfer'];
+    }
+
     switch (studyGoal) {
       case PrismaStudyGoalPreference.BUILD_PROJECT:
         return ['explanation', 'application'];
@@ -445,11 +557,30 @@ function buildMasteryGate(
   })();
 
   return {
-    confusionThreshold: 0.4,
-    minimumChecks: 2,
+    confusionThreshold: mode === 'exam' ? 0.3 : 0.4,
+    minimumChecks: mode === 'revision' ? 1 : 2,
     requiredQuestionTypes: [...requiredQuestionTypes],
     requiresDistinctQuestionTypes: true,
   };
+}
+
+function buildDependentCountByConceptId(
+  concepts: readonly SessionPlanningConcept[],
+): Map<string, number> {
+  const dependentCountByConceptId = new Map(
+    concepts.map((concept) => [concept.id, 0]),
+  );
+
+  for (const concept of concepts) {
+    for (const dependency of concept.dependsOn) {
+      dependentCountByConceptId.set(
+        dependency.prerequisiteId,
+        (dependentCountByConceptId.get(dependency.prerequisiteId) ?? 0) + 1,
+      );
+    }
+  }
+
+  return dependentCountByConceptId;
 }
 
 function compareConceptOrder(
@@ -518,6 +649,9 @@ function toLessonSegmentRecord(segment: LessonSegment): LessonSegmentRecord {
   return {
     analogyPrompt: segment.analogyPrompt,
     atuIds: [...segment.atuIds],
+    checkTypeBias: segment.checkTypeBias.map((value) =>
+      value as MasteryQuestionType,
+    ),
     checkPrompt: segment.checkPrompt,
     chunkIds: [...segment.chunkIds],
     conceptDescription: segment.conceptDescription,
@@ -533,6 +667,8 @@ function toLessonSegmentRecord(segment: LessonSegment): LessonSegmentRecord {
     masteryGate: masteryGateSchema.parse(segment.masteryGate),
     ordinal: segment.ordinal,
     prerequisiteConceptIds: [...segment.prerequisiteConceptIds],
+    reviewPriority: segment.reviewPriority,
+    selectionReason: segment.selectionReason as LessonSegmentSelectionReason,
     sectionId: segment.sectionId,
     sourceOrdinal: segment.sourceOrdinal,
     sourceUnitIds: [...segment.sourceUnitIds],

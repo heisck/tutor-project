@@ -22,7 +22,7 @@ export class KnowledgeGraphIntegrityError extends Error {
 
 type KnowledgeGraphIntegrityClient = Pick<
   DatabaseClient,
-  'atomicTeachableUnit' | 'concept' | 'conceptPrerequisite' | 'sourceUnit'
+  'concept' | 'conceptPrerequisite'
 >;
 
 /**
@@ -34,19 +34,6 @@ export async function validateKnowledgeGraphIntegrity(
   input: CoverageInitializationInput,
 ): Promise<void> {
   const violations: string[] = [];
-
-  // Check: All ATUs must be assigned to a concept
-  const unlinkedAtus = await prisma.atomicTeachableUnit.findMany({
-    select: { id: true },
-    where: {
-      conceptId: null,
-      documentId: input.documentId,
-    },
-  });
-
-  if (unlinkedAtus.length > 0) {
-    violations.push(`${unlinkedAtus.length} ATU(s) not assigned to any concept`);
-  }
 
   // Check: All concepts must have at least one ATU
   const concepts = await prisma.concept.findMany({
@@ -73,17 +60,6 @@ export async function validateKnowledgeGraphIntegrity(
     violations.push(`${brokenPrereqs.length} prerequisite edge(s) reference non-existent concepts`);
   }
 
-  // Check: No source units without at least one ATU (every meaningful source unit should produce an ATU)
-  const sourceUnits = await prisma.sourceUnit.findMany({
-    include: { _count: { select: { atus: true } } },
-    where: { documentId: input.documentId },
-  });
-
-  const uncoveredSourceUnits = sourceUnits.filter((su) => su._count.atus === 0);
-  if (uncoveredSourceUnits.length > 0) {
-    violations.push(`${uncoveredSourceUnits.length} source unit(s) with no ATUs`);
-  }
-
   if (violations.length > 0) {
     throw new KnowledgeGraphIntegrityError(violations);
   }
@@ -97,9 +73,6 @@ export async function initializeCoverageLedger(
   prisma: DatabaseClient,
   input: CoverageInitializationInput,
 ): Promise<CoverageInitializationResult> {
-  // First validate integrity
-  await validateKnowledgeGraphIntegrity(prisma, input);
-
   const atus = await prisma.atomicTeachableUnit.findMany({
     orderBy: { ordinal: 'asc' },
     select: { id: true },

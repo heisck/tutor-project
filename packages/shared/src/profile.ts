@@ -1,4 +1,5 @@
 export const PROFILE_PATHS = {
+  course: (courseId: string) => `/api/v1/courses/${courseId}`,
   courses: '/api/v1/courses',
   profile: '/api/v1/profile',
 } as const;
@@ -34,8 +35,23 @@ export interface UserProfileResponse {
 export interface CourseResponse {
   code: string | null;
   createdAt: string;
+  examDate: string | null;
   id: string;
   level: string | null;
   name: string;
   updatedAt: string;
+}
+
+export interface CreateCourseRequest {
+  code?: string | null;
+  examDate?: string | null;
+  level?: string | null;
+  name: string;
+}
+
+export interface UpdateCourseRequest {
+  code?: string | null;
+  examDate?: string | null;
+  level?: string | null;
+  name?: string;
 }

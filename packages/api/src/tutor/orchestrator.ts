@@ -2,7 +2,9 @@ import type {
   ConceptMasteryRecord,
   GroundedChunk,
   LessonSegmentRecord,
+  SessionExplanationType,
   StudySessionStateResponse,
+  TutorModeContext,
   TutorPromptContext,
   TutorStepDecision,
 } from '@ai-tutor-pwa/shared';
@@ -12,6 +14,7 @@ import {
   mapMasteryQuestionTypeToCheckType,
   selectNextTutorCheckType,
 } from './check-types.js';
+import { validateMasteryGate } from './mastery.js';
 
 export class TutorOrchestrationError extends Error {
   public constructor(message: string) {
@@ -36,8 +39,10 @@ export function orchestrateTutorNextStep(
 ): TutorOrchestrationResult {
   const { masteryRecords, retrievedChunks, sessionState } = input;
   const { session, teachingPlan, learningProfile } = sessionState;
-
-  const currentSegment = resolveCurrentSegment(teachingPlan.segments, session.currentSegmentId);
+  const currentSegment = resolveCurrentSegment(
+    teachingPlan.segments,
+    session.currentSegmentId ?? teachingPlan.currentSegmentId,
+  );
 
   if (currentSegment === null) {
     throw new TutorOrchestrationError(
@@ -45,8 +50,11 @@ export function orchestrateTutorNextStep(
     );
   }
 
-  const mastery = masteryRecords.get(currentSegment.conceptId) ?? null;
-  const decision = decideTutorAction(currentSegment, mastery, teachingPlan.segments);
+  const mastery = attachExplanationHistory(
+    masteryRecords.get(currentSegment.conceptId) ?? null,
+    currentSegment.conceptId,
+    sessionState.handoffSnapshot?.explanationHistory ?? [],
+  );
   const groundedEvidence = toGroundedChunks(retrievedChunks, currentSegment.chunkIds);
 
   if (groundedEvidence.length === 0) {
@@ -55,20 +63,25 @@ export function orchestrateTutorNextStep(
     );
   }
 
+  const decision = decideTutorAction(currentSegment, mastery, sessionState);
   const promptContext: TutorPromptContext = {
     action: decision.action,
     calibration: {
       academicLevel: learningProfile?.academicLevel ?? 'undergraduate',
-      explanationPreference: learningProfile?.explanationStartPreference ?? 'example_first',
+      explanationPreference:
+        learningProfile?.explanationStartPreference ?? 'example_first',
       sessionGoal: learningProfile?.sessionGoal ?? 'deep_understanding',
     },
     conceptTitle: currentSegment.conceptTitle,
     explanationStrategy: currentSegment.explanationStrategy,
     groundedEvidence,
     masteryState: mastery,
+    modeContext: toTutorModeContext(sessionState, currentSegment),
     previousExplanationTypes: mastery?.explanationTypes ?? [],
     segmentAnalogyPrompt: currentSegment.analogyPrompt,
     segmentCheckPrompt: currentSegment.checkPrompt,
+    unknownTermsQueue:
+      sessionState.handoffSnapshot?.turnState.unknownTermsQueue ?? [],
   };
 
   return { decision, promptContext };
@@ -77,13 +90,29 @@ export function orchestrateTutorNextStep(
 function decideTutorAction(
   segment: LessonSegmentRecord,
   mastery: ConceptMasteryRecord | null,
-  allSegments: readonly LessonSegmentRecord[],
+  sessionState: StudySessionStateResponse,
 ): TutorStepDecision {
   const conceptId = segment.conceptId;
   const segmentId = segment.id;
+  const currentTurnState = sessionState.handoffSnapshot?.turnState ?? null;
+  const lastErrorClassification = currentTurnState?.lastErrorClassification ?? null;
+  const cognitiveLoad = currentTurnState?.currentCognitiveLoad ?? 'low';
+  const responseQuality = currentTurnState?.responseQuality ?? 'adequate';
 
-  // No mastery record yet — this concept hasn't been taught
   if (mastery === null || mastery.status === 'not_taught') {
+    if (
+      sessionState.session.mode === 'quiz' ||
+      sessionState.session.mode === 'exam'
+    ) {
+      return {
+        action: 'check',
+        conceptId,
+        nextCheckType: selectInitialCheckType(segment),
+        reasoning: `Mode ${sessionState.session.mode} starts with a question-first check`,
+        segmentId,
+      };
+    }
+
     return {
       action: 'teach',
       conceptId,
@@ -93,114 +122,162 @@ function decideTutorAction(
     };
   }
 
-  // Concept was taught but not yet checked
+  if (cognitiveLoad === 'high' && mastery.status !== 'mastered') {
+    return {
+      action: 'simpler',
+      conceptId,
+      nextCheckType: null,
+      reasoning: 'High cognitive load detected, so the tutor should simplify before advancing.',
+      segmentId,
+    };
+  }
+
+  if (mastery.status === 'weak') {
+    return {
+      action: 'reteach',
+      conceptId,
+      nextCheckType: null,
+      reasoning: `Learner shows weak understanding of "${segment.conceptTitle}", so the tutor should reteach with explanation diversity.`,
+      segmentId,
+    };
+  }
+
+  if (
+    mastery.status === 'partial' &&
+    (responseQuality === 'adequate' ||
+      lastErrorClassification === 'partial_understanding')
+  ) {
+    return {
+      action: 'refine',
+      conceptId,
+      nextCheckType: selectNextTutorCheckType(mastery, segment),
+      reasoning: 'The learner is close but incomplete, so the tutor should refine the missing piece.',
+      segmentId,
+    };
+  }
+
   if (mastery.status === 'taught') {
     const nextCheckType = selectNextTutorCheckType(mastery, segment);
     return {
       action: 'check',
       conceptId,
       nextCheckType,
-      reasoning: `Concept was taught, now checking understanding with ${nextCheckType} question`,
+      reasoning: `Concept was taught, now checking understanding with a ${nextCheckType} question.`,
       segmentId,
     };
   }
 
-  // Concept is weak — needs reteach
-  if (mastery.status === 'weak') {
-    return {
-      action: 'reteach',
-      conceptId,
-      nextCheckType: null,
-      reasoning: `Learner shows weak understanding of "${segment.conceptTitle}", reteaching with different strategy`,
-      segmentId,
-    };
-  }
-
-  // Concept is partially understood — check again with different question type
   if (mastery.status === 'partial') {
     const nextCheckType = selectNextTutorCheckType(mastery, segment);
     return {
       action: 'check',
       conceptId,
       nextCheckType,
-      reasoning: `Partial understanding, checking with different question type: ${nextCheckType}`,
+      reasoning: `Partial understanding remains, so the tutor should recheck with ${nextCheckType}.`,
       segmentId,
     };
   }
 
-  // Concept was checked but needs more evidence for mastery
   if (mastery.status === 'checked') {
-    const gate = segment.masteryGate;
-    const hasEnoughEvidence = mastery.evidenceHistory.length >= gate.minimumChecks;
-    const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
-    const hasDistinctTypes = !gate.requiresDistinctQuestionTypes ||
-      gate.requiredQuestionTypes.every((type) => {
-        const mapped = mapMasteryQuestionTypeToCheckType(type);
-        return mapped !== null && usedTypes.has(mapped);
-      });
+    const gateResult = validateMasteryGate(mastery, segment.masteryGate);
+    if (gateResult.passed) {
+      return advanceDecision(segment, sessionState.teachingPlan.segments);
+    }
 
-    if (hasEnoughEvidence && hasDistinctTypes && mastery.confusionScore <= gate.confusionThreshold) {
-      // Ready to advance — check if there's a next segment
-      const nextSegment = allSegments.find((s) => s.ordinal === segment.ordinal + 1);
-      if (nextSegment !== undefined) {
-        return {
-          action: 'complete_segment',
-          conceptId,
-          nextCheckType: null,
-          reasoning: `Concept "${segment.conceptTitle}" mastery gate passed, advancing to next segment`,
-          segmentId,
-        };
-      }
-
+    if (responseQuality === 'adequate') {
       return {
-        action: 'complete_session',
+        action: 'refine',
         conceptId,
-        nextCheckType: null,
-        reasoning: 'All segments processed and mastery gate passed for final concept',
+        nextCheckType: selectNextTutorCheckType(mastery, segment),
+        reasoning: `The learner has evidence on record but still needs ${gateResult.reason}.`,
         segmentId,
       };
     }
 
-    // Need more evidence
     const nextCheckType = selectNextTutorCheckType(mastery, segment);
     return {
       action: 'check',
       conceptId,
       nextCheckType,
-      reasoning: `Checked but mastery gate not yet met — needs ${gate.minimumChecks - mastery.evidenceHistory.length} more checks or different question types`,
+      reasoning: `Checked but mastery gate not met yet: ${gateResult.reason}.`,
       segmentId,
     };
   }
 
-  // Mastered — advance to next segment
   if (mastery.status === 'mastered') {
-    const nextSegment = allSegments.find((s) => s.ordinal === segment.ordinal + 1);
-    if (nextSegment !== undefined) {
-      return {
-        action: 'complete_segment',
-        conceptId,
-        nextCheckType: null,
-        reasoning: `Concept "${segment.conceptTitle}" is mastered, moving to next segment`,
-        segmentId,
-      };
-    }
-
-    return {
-      action: 'complete_session',
-      conceptId,
-      nextCheckType: null,
-      reasoning: 'Final concept mastered, session can complete',
-      segmentId,
-    };
+    return advanceDecision(segment, sessionState.teachingPlan.segments);
   }
 
-  // Fallback: teach
   return {
     action: 'teach',
     conceptId,
     nextCheckType: null,
-    reasoning: 'Unrecognized mastery state, defaulting to teach',
+    reasoning: 'Unrecognized mastery state, defaulting to teach.',
     segmentId,
+  };
+}
+
+function advanceDecision(
+  segment: LessonSegmentRecord,
+  allSegments: readonly LessonSegmentRecord[],
+): TutorStepDecision {
+  const nextSegment = allSegments.find((candidate) => candidate.ordinal === segment.ordinal + 1);
+
+  if (nextSegment !== undefined) {
+    return {
+      action: 'advance',
+      conceptId: segment.conceptId,
+      nextCheckType: null,
+      reasoning: `Concept "${segment.conceptTitle}" satisfied its mastery gate, so the tutor can advance.`,
+      segmentId: segment.id,
+    };
+  }
+
+  return {
+    action: 'complete_session',
+    conceptId: segment.conceptId,
+    nextCheckType: null,
+    reasoning: 'Final concept is complete, so the session can end.',
+    segmentId: segment.id,
+  };
+}
+
+function selectInitialCheckType(
+  segment: LessonSegmentRecord,
+) {
+  for (const masteryQuestionType of segment.checkTypeBias) {
+    const mappedCheckType = mapMasteryQuestionTypeToCheckType(masteryQuestionType);
+    if (mappedCheckType !== null) {
+      return mappedCheckType;
+    }
+  }
+
+  return mapMasteryQuestionTypeToCheckType(
+    segment.masteryGate.requiredQuestionTypes[0] ?? 'explanation',
+  );
+}
+
+function attachExplanationHistory(
+  mastery: ConceptMasteryRecord | null,
+  conceptId: string,
+  explanationHistory: ReadonlyArray<{
+    conceptId: string;
+    explanationType: SessionExplanationType;
+  }>,
+): ConceptMasteryRecord | null {
+  if (mastery === null) {
+    return null;
+  }
+
+  if (mastery.explanationTypes.length > 0) {
+    return mastery;
+  }
+
+  return {
+    ...mastery,
+    explanationTypes: explanationHistory
+      .filter((entry) => entry.conceptId === conceptId)
+      .map((entry) => entry.explanationType),
   };
 }
 
@@ -212,7 +289,7 @@ function resolveCurrentSegment(
     return segments[0] ?? null;
   }
 
-  return segments.find((s) => s.id === currentSegmentId) ?? null;
+  return segments.find((segment) => segment.id === currentSegmentId) ?? null;
 }
 
 function toGroundedChunks(
@@ -228,4 +305,19 @@ function toGroundedChunks(
       id: chunk.id,
       score: chunk.score,
     }));
+}
+
+function toTutorModeContext(
+  sessionState: StudySessionStateResponse,
+  currentSegment: LessonSegmentRecord,
+): TutorModeContext {
+  return {
+    activeMode: sessionState.modeContext.activeMode,
+    checkTypeBias: currentSegment.checkTypeBias,
+    currentSelectionReason: currentSegment.selectionReason,
+    degradedReason: sessionState.modeContext.degradedReason,
+    queueCursor: sessionState.modeContext.queueCursor,
+    queueSize: sessionState.modeContext.queueSize,
+    reviewPriority: currentSegment.reviewPriority,
+  };
 }

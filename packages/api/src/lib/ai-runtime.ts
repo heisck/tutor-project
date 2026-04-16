@@ -26,11 +26,41 @@ export const AI_CALL_CONFIGS = {
     model: 'text-embedding-3-small',
     timeoutMs: 30_000,
   },
+  tutorAssistant: {
+    label: 'tutor-assistant',
+    maxTokens: 1024,
+    model: 'claude-haiku-4-5-20251001',
+    timeoutMs: 45_000,
+  },
+  tutorEvaluation: {
+    label: 'tutor-evaluation',
+    maxTokens: 1024,
+    model: 'claude-haiku-4-5-20251001',
+    timeoutMs: 45_000,
+  },
+  tutorGeneration: {
+    label: 'tutor-generation',
+    maxTokens: 1024,
+    model: 'claude-haiku-4-5-20251001',
+    timeoutMs: 45_000,
+  },
   visionDescription: {
     label: 'vision-description',
     maxTokens: 300,
     model: 'claude-haiku-4-5-20251001',
     timeoutMs: 30_000,
+  },
+  voiceSynthesis: {
+    label: 'voice-synthesis',
+    maxTokens: 0,
+    model: 'gpt-4o-mini-tts',
+    timeoutMs: 45_000,
+  },
+  voiceTranscription: {
+    label: 'voice-transcription',
+    maxTokens: 0,
+    model: 'gpt-4o-mini-transcribe',
+    timeoutMs: 45_000,
   },
 } as const satisfies Record<string, AiCallConfig>;
 

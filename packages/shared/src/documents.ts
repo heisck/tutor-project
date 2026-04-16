@@ -1,3 +1,10 @@
+export const DOCUMENT_PATHS = {
+  delete: (documentId: string) => `/api/v1/documents/${documentId}`,
+  list: '/api/v1/documents',
+  status: (documentId: string) => `/api/v1/documents/${documentId}/status`,
+  structure: (documentId: string) => `/api/v1/documents/${documentId}/structure`,
+} as const;
+
 export type DocumentProcessingStatus =
   | 'pending'
   | 'queued'
@@ -7,6 +14,17 @@ export type DocumentProcessingStatus =
   | 'complete'
   | 'failed'
   | 'retrying';
+
+export interface DocumentListItemResponse {
+  courseId: string | null;
+  createdAt: string;
+  documentId: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  processingStatus: DocumentProcessingStatus;
+  updatedAt: string;
+}
 
 export interface DocumentStatusResponse {
   documentId: string;

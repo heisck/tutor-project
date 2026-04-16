@@ -1,5 +1,39 @@
 # Environment Variables Setup
 
+## Quick Start (Development)
+
+### 1. Root Environment (`.env.local`)
+```bash
+# Main repo env file used by `npm run dev`
+# File: .env.local
+
+# Required for actual features (update these):
+OPENAI_API_KEY=sk-your-key
+ANTHROPIC_API_KEY=sk-ant-your-key
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+
+# Redis will default to localhost:6379 if not provided
+# Database URL should point to your local PostgreSQL
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_tutor
+```
+
+### 2. Web Package (`packages/web/`)
+```bash
+# No API base URL is required for normal local development.
+# Browser requests use same-origin `/api/*` routes and Next.js rewrites them
+# to the API server on http://localhost:4000 by default.
+```
+
+### 3. Start Development
+```bash
+cd /path/to/tutor-project
+npm install
+npm run dev
+```
+
+---
+
 ## Core API Variables
 
 Copy `.env.example` to `.env.local` and replace the placeholders with real values.
@@ -14,11 +48,13 @@ POSTGRES_URL=postgresql://user:password@host:port/dbname
 POSTGRES_URL_NON_POOLING=postgresql://user:password@host:port/dbname
 
 REDIS_URL=redis://user:password@host:port
+# Development default: redis://localhost:6379 (optional)
+
 KV_URL=rediss://default:password@host:port
 KV_REST_API_URL=https://yourinstance.upstash.io
 KV_REST_API_TOKEN=your_token_here
 
-CORS_ORIGINS=http://localhost:8080,https://app.domain.com
+CORS_ORIGINS=http://localhost:3000
 COOKIE_SECRET=generate_32_char_random_string_here
 JWT_SECRET=generate_32_char_random_string_here
 SESSION_TTL_HOURS=168
@@ -66,7 +102,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 npm install
 ```
 
-2. Copy the example env file.
+2. Create the root env file from the example.
 
 ```bash
 cp .env.example .env.local
@@ -92,6 +128,27 @@ npm run dev
 ```
 
 The API is available at `http://localhost:4000`.
+In the current repo, `npm run dev` now starts the API with its document worker in the same dev process so uploads can move beyond `queued` without a separate manual worker launch.
+The web app stays on `http://localhost:3000` and proxies browser `/api/*` calls to that API process.
+
+## Production Process Model
+
+For hosted deployments, run these as separate long-lived processes:
+
+```bash
+npm run start:web
+npm run start:api
+npm run start:worker
+```
+
+You will also need:
+
+- PostgreSQL
+- Redis
+- R2-compatible object storage
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- Google OAuth credentials if you want Google sign-in enabled
 
 ## Verification
 

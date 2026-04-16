@@ -5,7 +5,7 @@ import {
   type CsrfTokenResponse,
 } from '@ai-tutor-pwa/shared';
 import type { FastifyInstance } from 'fastify';
-import request from 'supertest';
+import type request from 'supertest';
 
 import {
   CSRF_COOKIE_NAME,
@@ -134,11 +134,15 @@ export function extractCookie(
   setCookieHeader: string | readonly string[] | undefined,
   cookieName: string,
 ): string | null {
-  const rawCookie = Array.isArray(setCookieHeader)
-    ? setCookieHeader.find((value) => value.startsWith(`${cookieName}=`))
-    : setCookieHeader?.startsWith(`${cookieName}=`)
-      ? setCookieHeader
-      : undefined;
+  const cookieValues =
+    setCookieHeader === undefined
+      ? []
+      : Array.isArray(setCookieHeader)
+        ? [...setCookieHeader]
+        : [setCookieHeader];
+  const rawCookie = cookieValues.find((value) =>
+    value.startsWith(`${cookieName}=`),
+  );
 
   if (rawCookie === undefined) {
     return null;

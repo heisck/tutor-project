@@ -5,6 +5,7 @@ import type {
 } from '@ai-tutor-pwa/shared';
 
 import { getOwnedStudySessionState } from '../sessions/state.js';
+import type { TutorAiProvider } from './provider.js';
 import { isPromptInjectionLikeDocumentText } from './document-safety.js';
 
 const ANSWERED_MATCH_THRESHOLD = 2;
@@ -52,6 +53,11 @@ interface RankedGroundedChunk extends GroundedChunk {
   supportScore: number;
 }
 
+export interface TutorAssistantQuestionResult {
+  providerCallCount: number;
+  response: TutorAssistantQuestionResponse;
+}
+
 export class TutorAssistantQuestionError extends Error {
   public constructor(message: string) {
     super(message);
@@ -69,11 +75,12 @@ export async function answerOwnedTutorQuestion(
     | 'studySession'
   >,
   input: {
+    provider: TutorAiProvider;
     question: string;
     sessionId: string;
     userId: string;
   },
-): Promise<TutorAssistantQuestionResponse | null> {
+): Promise<TutorAssistantQuestionResult | null> {
   const sessionState = await getOwnedStudySessionState(prisma, {
     sessionId: input.sessionId,
     userId: input.userId,
@@ -90,6 +97,9 @@ export async function answerOwnedTutorQuestion(
   }
 
   const currentSegment =
+    sessionState.teachingPlan.segments.find(
+      (segment) => segment.id === sessionState.handoffSnapshot?.currentSegmentId,
+    ) ??
     sessionState.teachingPlan.segments.find(
       (segment) => segment.id === sessionState.session.currentSegmentId,
     ) ??
@@ -113,39 +123,58 @@ export async function answerOwnedTutorQuestion(
     strongestGrounding.supportScore < WEAK_GROUNDING_SCORE_THRESHOLD
   ) {
     return {
-      answer: buildRefusalAnswer(currentSegment?.conceptTitle ?? null),
-      currentSegmentId: currentSegment?.id ?? null,
-      documentId: sessionState.session.documentId,
-      groundedEvidence: [],
-      outcome: 'refused',
-      understandingCheck: null,
+      providerCallCount: 0,
+      response: {
+        answer: buildRefusalAnswer(currentSegment?.conceptTitle ?? null),
+        currentSegmentId: currentSegment?.id ?? null,
+        documentId: sessionState.session.documentId,
+        evaluation: null,
+        groundedEvidence: [],
+        outcome: 'refused',
+        understandingCheck: null,
+      },
     };
   }
+
+  const generatedAnswer = await input.provider.generateAssistantAnswer({
+    conceptTitle: currentSegment?.conceptTitle ?? null,
+    groundedEvidence,
+    question: input.question,
+  });
 
   if (
     strongestGrounding.matchCount < ANSWERED_MATCH_THRESHOLD ||
     strongestGrounding.supportScore < ANSWERED_SCORE_THRESHOLD
   ) {
     return {
-      answer: buildWeakGroundingAnswer(
+      providerCallCount: generatedAnswer.providerCallCount,
+      response: {
+        answer: generatedAnswer.answer,
+        currentSegmentId: currentSegment?.id ?? null,
+        documentId: sessionState.session.documentId,
+        evaluation: null,
         groundedEvidence,
-        currentSegment?.conceptTitle ?? null,
-      ),
-      currentSegmentId: currentSegment?.id ?? null,
-      documentId: sessionState.session.documentId,
-      groundedEvidence,
-      outcome: 'weak_grounding',
-      understandingCheck: buildUnderstandingCheck(currentSegment?.conceptTitle ?? null),
+        outcome: 'weak_grounding',
+        understandingCheck:
+          generatedAnswer.understandingCheck ??
+          buildUnderstandingCheck(currentSegment?.conceptTitle ?? null),
+      },
     };
   }
 
   return {
-    answer: buildAnsweredResponse(groundedEvidence, currentSegment?.conceptTitle ?? null),
-    currentSegmentId: currentSegment?.id ?? null,
-    documentId: sessionState.session.documentId,
-    groundedEvidence,
-    outcome: 'answered',
-    understandingCheck: buildUnderstandingCheck(currentSegment?.conceptTitle ?? null),
+    providerCallCount: generatedAnswer.providerCallCount,
+    response: {
+      answer: generatedAnswer.answer,
+      currentSegmentId: currentSegment?.id ?? null,
+      documentId: sessionState.session.documentId,
+      evaluation: null,
+      groundedEvidence,
+      outcome: 'answered',
+      understandingCheck:
+        generatedAnswer.understandingCheck ??
+        buildUnderstandingCheck(currentSegment?.conceptTitle ?? null),
+    },
   };
 }
 
@@ -227,44 +256,6 @@ function stripRankingMetadata(chunk: RankedGroundedChunk): GroundedChunk {
     id: chunk.id,
     score: chunk.score,
   };
-}
-
-function buildAnsweredResponse(
-  groundedEvidence: readonly GroundedChunk[],
-  conceptTitle: string | null,
-): string {
-  const heading =
-    conceptTitle === null
-      ? 'Based on your document, here is the best grounded answer.'
-      : `Based on your document's ${conceptTitle} material, here is the best grounded answer.`;
-
-  return [
-    heading,
-    '',
-    `Short answer: ${groundedEvidence[0]?.content ?? 'No grounded answer available.'}`,
-    '',
-    'Grounding from your material:',
-    ...groundedEvidence.map((chunk) => `- ${chunk.content}`),
-  ].join('\n');
-}
-
-function buildWeakGroundingAnswer(
-  groundedEvidence: readonly GroundedChunk[],
-  conceptTitle: string | null,
-): string {
-  const scopeHint =
-    conceptTitle === null
-      ? 'your current document'
-      : `the ${conceptTitle} part of your current document`;
-
-  return [
-    'I found only partial support in your document, so I will stay narrow and avoid guessing.',
-    '',
-    `Closest grounding I found in ${scopeHint}:`,
-    ...groundedEvidence.map((chunk) => `- ${chunk.content}`),
-    '',
-    'Ask about a more specific phrase or concept if you want a stronger answer.',
-  ].join('\n');
 }
 
 function buildRefusalAnswer(conceptTitle: string | null): string {

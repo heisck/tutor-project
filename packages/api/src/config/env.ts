@@ -24,7 +24,7 @@ const apiEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
   PORT: z.coerce.number().int().positive().default(4000),
-  REDIS_URL: z.url({ error: 'REDIS_URL must be a valid URL' }),
+  REDIS_URL: z.string().url({ error: 'REDIS_URL must be a valid URL' }).optional().default('redis://localhost:6379'),
   R2_ACCESS_KEY_ID: z.string().min(1, 'R2_ACCESS_KEY_ID is required'),
   R2_BUCKET_NAME: z.string().min(1, 'R2_BUCKET_NAME is required'),
   R2_ENDPOINT: z.url({ error: 'R2_ENDPOINT must be a valid URL' }),

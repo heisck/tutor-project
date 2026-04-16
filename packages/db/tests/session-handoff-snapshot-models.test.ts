@@ -94,8 +94,10 @@ describe('session handoff snapshot model', () => {
         ],
         resumeNotes: 'Restart with a quick recap',
         studySessionId: session.id,
+        turnState: {},
         unresolvedAtuIds: ['atu-1'],
         userId: user.id,
+        voiceState: {},
       },
       include: {
         document: true,

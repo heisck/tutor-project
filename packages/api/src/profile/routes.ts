@@ -43,8 +43,27 @@ const updateProfileSchema = z
 const createCourseSchema = z
   .object({
     code: z.string().trim().min(2).max(32).nullable().optional(),
+    examDate: z.string().datetime({ offset: true }).nullable().optional(),
     level: z.string().trim().min(1).max(50).nullable().optional(),
     name: z.string().trim().min(2).max(120),
+  })
+  .strict();
+
+const updateCourseSchema = z
+  .object({
+    code: z.string().trim().min(2).max(32).nullable().optional(),
+    examDate: z.string().datetime({ offset: true }).nullable().optional(),
+    level: z.string().trim().min(1).max(50).nullable().optional(),
+    name: z.string().trim().min(2).max(120).optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one course field must be provided',
+  });
+
+const courseParamsSchema = z
+  .object({
+    courseId: z.string().trim().min(1, 'courseId is required'),
   })
   .strict();
 
@@ -212,6 +231,13 @@ export async function registerProfileRoutes(
         courseData.level = normalizeOptionalString(parsedBody.data.level) ?? null;
       }
 
+      if (parsedBody.data.examDate !== undefined) {
+        courseData.examDate =
+          parsedBody.data.examDate === null
+            ? null
+            : new Date(parsedBody.data.examDate);
+      }
+
       const course = await dependencies.prisma.course.create({
         data: courseData,
       });
@@ -236,6 +262,77 @@ export async function registerProfileRoutes(
       });
 
       return courses.map(mapCourseResponse);
+    },
+  );
+
+  app.put(
+    PROFILE_PATHS.course(':courseId'),
+    {
+      preHandler: [
+        requireAuth,
+        requireAllowedOrigin,
+        requireCsrf,
+        profileWriteRateLimit,
+      ],
+    },
+    async (request, reply): Promise<CourseResponse | void> => {
+      const parsedParams = courseParamsSchema.safeParse(request.params);
+      const parsedBody = updateCourseSchema.safeParse(request.body);
+
+      if (!parsedParams.success) {
+        return reply.status(400).send({
+          message: parsedParams.error.issues[0]?.message ?? 'Invalid route params',
+        });
+      }
+
+      if (!parsedBody.success) {
+        return reply.status(400).send({
+          message: parsedBody.error.issues[0]?.message ?? 'Invalid request body',
+        });
+      }
+
+      const existingCourse = await dependencies.prisma.course.findFirst({
+        where: {
+          id: parsedParams.data.courseId,
+          userId: request.auth!.userId,
+        },
+      });
+
+      if (existingCourse === null) {
+        return reply.status(404).send({
+          message: 'Course not found',
+        });
+      }
+
+      const updateData: Prisma.CourseUpdateInput = {};
+
+      if (parsedBody.data.name !== undefined) {
+        updateData.name = parsedBody.data.name.trim();
+      }
+
+      if (parsedBody.data.code !== undefined) {
+        updateData.code = normalizeOptionalString(parsedBody.data.code) ?? null;
+      }
+
+      if (parsedBody.data.level !== undefined) {
+        updateData.level = normalizeOptionalString(parsedBody.data.level) ?? null;
+      }
+
+      if (parsedBody.data.examDate !== undefined) {
+        updateData.examDate =
+          parsedBody.data.examDate === null
+            ? null
+            : new Date(parsedBody.data.examDate);
+      }
+
+      const updatedCourse = await dependencies.prisma.course.update({
+        data: updateData,
+        where: {
+          id: existingCourse.id,
+        },
+      });
+
+      return reply.send(mapCourseResponse(updatedCourse));
     },
   );
 }
@@ -346,6 +443,7 @@ function mapCourseResponse(course: Course): CourseResponse {
   return {
     code: course.code,
     createdAt: course.createdAt.toISOString(),
+    examDate: course.examDate?.toISOString() ?? null,
     id: course.id,
     level: course.level,
     name: course.name,

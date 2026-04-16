@@ -1,25 +1,23 @@
 import { z } from 'zod';
 
 import {
+  cognitiveLoadSchema,
+  confusionSignalSchema,
+  errorClassificationSchema,
+  responseQualitySchema,
   sessionExplanationOutcomeSchema,
   sessionExplanationTypeSchema,
   sessionMasteryStatusSchema,
+  tutorActionSchema,
 } from './session-handoff.js';
+import {
+  lessonSegmentSelectionReasonSchema,
+  masteryQuestionTypeSchema,
+} from './lesson-plan.js';
+import { STUDY_SESSION_MODES } from './sessions.js';
 
-// ── Tutor Actions ──────────────────────────────────────────────────────
-
-export const tutorActionSchema = z.enum([
-  'teach',
-  'check',
-  'reteach',
-  'simpler',
-  'skip',
-  'complete_segment',
-  'complete_session',
-]);
-export type TutorAction = z.infer<typeof tutorActionSchema>;
-
-// ── Learner Response ───────────────────────────────────────────────────
+export { tutorActionSchema };
+type TutorAction = z.infer<typeof tutorActionSchema>;
 
 export const learnerResponseSchema = z
   .object({
@@ -30,44 +28,25 @@ export const learnerResponseSchema = z
   .strict();
 export type LearnerResponse = z.infer<typeof learnerResponseSchema>;
 
-// ── Error Classification ───────────────────────────────────────────────
+export { errorClassificationSchema };
+type ErrorClassification = z.infer<typeof errorClassificationSchema>;
 
-export const errorClassificationSchema = z.enum([
-  'misconception',
-  'partial_understanding',
-  'surface_memorization',
-  'careless_mistake',
-  'guessing',
-  'vocabulary_block',
-  'none',
-]);
-export type ErrorClassification = z.infer<typeof errorClassificationSchema>;
-
-// ── Confusion Signal ───────────────────────────────────────────────────
-
-export const confusionSignalSchema = z.enum([
-  'vague_answer',
-  'filler_phrases',
-  'repeated_paraphrasing',
-  'correct_words_weak_reasoning',
-  'long_pause',
-  'no_signal',
-]);
-export type ConfusionSignal = z.infer<typeof confusionSignalSchema>;
-
-// ── Response Evaluation ────────────────────────────────────────────────
+export { confusionSignalSchema };
+type ConfusionSignal = z.infer<typeof confusionSignalSchema>;
 
 export const responseEvaluationSchema = z.object({
+  cognitiveLoad: cognitiveLoadSchema,
   confusionScore: z.number().min(0).max(1),
   confusionSignals: z.array(confusionSignalSchema),
   errorClassification: errorClassificationSchema,
   illusionOfUnderstanding: z.boolean(),
   isCorrect: z.boolean(),
   reasoning: z.string().min(1),
+  recommendedAction: tutorActionSchema.nullable(),
+  responseQuality: responseQualitySchema,
+  unknownTerms: z.array(z.string().trim().min(1)),
 });
 export type ResponseEvaluation = z.infer<typeof responseEvaluationSchema>;
-
-// ── Question Types (12-type rotation) ──────────────────────────────────
 
 export const checkQuestionTypeSchema = z.enum([
   'recall',
@@ -85,8 +64,6 @@ export const checkQuestionTypeSchema = z.enum([
 ]);
 export type CheckQuestionType = z.infer<typeof checkQuestionTypeSchema>;
 
-// ── Mastery Evidence ───────────────────────────────────────────────────
-
 export const masteryEvidenceSchema = z.object({
   checkType: checkQuestionTypeSchema,
   conceptId: z.string().min(1),
@@ -97,8 +74,6 @@ export const masteryEvidenceSchema = z.object({
 });
 export type MasteryEvidence = z.infer<typeof masteryEvidenceSchema>;
 
-// ── Concept Mastery Record ─────────────────────────────────────────────
-
 export const conceptMasteryRecordSchema = z.object({
   conceptId: z.string().min(1),
   confusionScore: z.number().min(0).max(1),
@@ -107,8 +82,6 @@ export const conceptMasteryRecordSchema = z.object({
   status: sessionMasteryStatusSchema,
 });
 export type ConceptMasteryRecord = z.infer<typeof conceptMasteryRecordSchema>;
-
-// ── Tutor Step Decision ────────────────────────────────────────────────
 
 export const tutorStepDecisionSchema = z.object({
   action: tutorActionSchema,
@@ -119,8 +92,6 @@ export const tutorStepDecisionSchema = z.object({
 });
 export type TutorStepDecision = z.infer<typeof tutorStepDecisionSchema>;
 
-// ── Grounded Prompt Context ────────────────────────────────────────────
-
 export const groundedChunkSchema = z.object({
   content: z.string().min(1),
   id: z.string().min(1),
@@ -128,7 +99,16 @@ export const groundedChunkSchema = z.object({
 });
 export type GroundedChunk = z.infer<typeof groundedChunkSchema>;
 
-// ── Tutor Prompt Assembly ──────────────────────────────────────────────
+export const tutorModeContextSchema = z.object({
+  activeMode: z.enum(STUDY_SESSION_MODES),
+  checkTypeBias: z.array(masteryQuestionTypeSchema),
+  currentSelectionReason: lessonSegmentSelectionReasonSchema,
+  degradedReason: z.string().trim().min(1).nullable(),
+  queueCursor: z.number().int().nonnegative(),
+  queueSize: z.number().int().nonnegative(),
+  reviewPriority: z.number().min(0).max(1).nullable(),
+});
+export type TutorModeContext = z.infer<typeof tutorModeContextSchema>;
 
 export const tutorPromptContextSchema = z.object({
   action: tutorActionSchema,
@@ -141,13 +121,13 @@ export const tutorPromptContextSchema = z.object({
   explanationStrategy: z.string().min(1),
   groundedEvidence: z.array(groundedChunkSchema),
   masteryState: conceptMasteryRecordSchema.nullable(),
+  modeContext: tutorModeContextSchema,
   previousExplanationTypes: z.array(sessionExplanationTypeSchema),
   segmentCheckPrompt: z.string().min(1),
   segmentAnalogyPrompt: z.string().min(1),
+  unknownTermsQueue: z.array(z.string().trim().min(1)),
 });
 export type TutorPromptContext = z.infer<typeof tutorPromptContextSchema>;
-
-// ── Explanation Diversity ──────────────────────────────────────────────
 
 export const explanationAttemptSchema = z.object({
   conceptId: z.string().min(1),
@@ -157,20 +137,20 @@ export const explanationAttemptSchema = z.object({
 });
 export type ExplanationAttempt = z.infer<typeof explanationAttemptSchema>;
 
-// ── Coverage Audit ─────────────────────────────────────────────────────
-
 export const coverageAuditResultSchema = z.object({
   canComplete: z.boolean(),
+  checkedCount: z.number().int().nonnegative(),
   masteredCount: z.number().int().nonnegative(),
   partialCount: z.number().int().nonnegative(),
+  resolvedAtuCount: z.number().int().nonnegative(),
   taughtCount: z.number().int().nonnegative(),
   totalConcepts: z.number().int().nonnegative(),
+  totalAtus: z.number().int().nonnegative(),
   unresolvedConceptIds: z.array(z.string().min(1)),
+  unresolvedAtuIds: z.array(z.string().min(1)),
   weakCount: z.number().int().nonnegative(),
 });
 export type CoverageAuditResult = z.infer<typeof coverageAuditResultSchema>;
-
-// ── Memory Compression ─────────────────────────────────────────────────
 
 export const compressedLearningStateSchema = z.object({
   compressedAt: z.string().datetime({ offset: true }),
@@ -182,8 +162,6 @@ export const compressedLearningStateSchema = z.object({
 export type CompressedLearningState = z.infer<
   typeof compressedLearningStateSchema
 >;
-
-// ── Tutor Runtime API Paths ────────────────────────────────────────────
 
 export const TUTOR_RUNTIME_PATHS = {
   evaluate: '/api/v1/tutor/evaluate',
