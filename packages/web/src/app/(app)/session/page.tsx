@@ -681,7 +681,18 @@ function ActiveSession({
                 Transcript: {voiceTranscript}
               </p>
             )}
-            {audioUrl && <audio className="w-full h-8" controls src={audioUrl} />}
+            {audioUrl && (
+              <audio
+                className="w-full h-8"
+                controls
+                src={audioUrl}
+                onError={() => {
+                  URL.revokeObjectURL(audioUrl);
+                  setAudioUrl(null);
+                  setPageError('Audio playback failed. Try playing the message again.');
+                }}
+              />
+            )}
           </div>
         </div>
 
@@ -1037,17 +1048,7 @@ function SessionPageContent() {
     setPageError(null);
 
     try {
-      const result = await api.evaluateTutorResponse(activeSession.session.id, seg?.id ?? '', trimmed);
-      const feedback = [
-        result.evaluation.reasoning,
-        `→ ${result.evaluation.recommendedAction ?? 'continue'} · mastery: **${result.mastery.status}**`,
-      ].join('\n\n');
-
-      setMessages((prev) => [
-        ...prev,
-        { id: `${Date.now()}-eval`, role: 'assistant', content: feedback, timestamp: new Date() },
-      ]);
-
+      await api.evaluateTutorResponse(activeSession.session.id, seg?.id ?? '', trimmed);
       const nextState = await api.getSessionState(activeSession.session.id);
       setActiveSession(nextState);
       await triggerTutorTurn(activeSession.session.id, nextState);
@@ -1122,6 +1123,12 @@ function SessionPageContent() {
         ...prev,
         { id: `${Date.now()}-vc`, role: 'assistant', content: resp.responseText, timestamp: new Date() },
       ]);
+      const contentCommands = new Set(['repeat', 'simpler', 'example', 'go_back', 'test_me']);
+      if (contentCommands.has(cmd)) {
+        const nextState = await api.getSessionState(activeSession.session.id);
+        setActiveSession(nextState);
+        await triggerTutorTurn(activeSession.session.id, nextState);
+      }
     } catch (err) {
       setPageError(err instanceof Error ? err.message : 'Voice command failed.');
     } finally {
