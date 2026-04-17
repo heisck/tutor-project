@@ -5,13 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BookOpen, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { Button, useToast } from '@/components';
 
 export default function SignInPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -20,9 +23,21 @@ export default function SignInPage() {
     setIsLoading(true);
     try {
       await api.signIn(email, password);
+      showToast({
+        title: 'Signed in',
+        description: 'Welcome back. Loading your dashboard now.',
+        variant: 'success',
+      });
       router.push('/dashboard');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Sign in failed. Please try again.');
+      const message =
+        err instanceof ApiError ? err.message : 'Sign in failed. Please try again.';
+      setError(message);
+      showToast({
+        title: 'Sign in failed',
+        description: message,
+        variant: 'error',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -30,10 +45,18 @@ export default function SignInPage() {
 
   async function handleGoogleOAuth() {
     try {
+      setOauthLoading(true);
       const { authorizationUrl } = await api.getGoogleOAuthUrl();
       window.location.href = authorizationUrl;
     } catch {
-      setError('Failed to start Google sign in.');
+      const message = 'Failed to start Google sign in.';
+      setError(message);
+      showToast({
+        title: 'Google sign in unavailable',
+        description: message,
+        variant: 'error',
+      });
+      setOauthLoading(false);
     }
   }
 
@@ -74,7 +97,9 @@ export default function SignInPage() {
           {/* Google OAuth */}
           <button
             onClick={handleGoogleOAuth}
+            disabled={oauthLoading || isLoading}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg border border-surface-border bg-surface-hover hover:bg-surface-active transition-colors mb-6"
+            type="button"
           >
             <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
               <path d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107"/>
@@ -82,7 +107,9 @@ export default function SignInPage() {
               <path d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0124 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" fill="#4CAF50"/>
               <path d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 01-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2"/>
             </svg>
-            <span className="font-mono text-sm text-cream">Continue with Google</span>
+            <span className="font-mono text-sm text-cream">
+              {oauthLoading ? 'Redirecting…' : 'Continue with Google'}
+            </span>
           </button>
 
           {/* Divider */}
@@ -140,23 +167,16 @@ export default function SignInPage() {
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full justify-center py-3 mt-2"
+              disabled={oauthLoading}
+              loading={isLoading}
+              loadingText="Signing in..."
+              className="w-full justify-center py-3 mt-2"
             >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />
-                  Signing in…
-                </span>
-              ) : (
-                <>
-                  Sign in
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
+              Sign in
+              <ArrowRight size={16} />
+            </Button>
           </form>
 
           {/* Footer */}

@@ -54,7 +54,7 @@ describe('classifyError', () => {
       illusionOfUnderstanding: true,
       isCorrect: true,
     });
-    expect(result).toBe('surface_memorization');
+    expect(result).toBe('memorization');
   });
 
   it('classifies vague high-confusion as guessing', () => {
@@ -95,12 +95,16 @@ describe('applyEvaluationToMastery', () => {
       status: 'taught',
     };
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'low',
       confusionScore: 0.1,
       confusionSignals: ['no_signal'],
       errorClassification: 'none',
       illusionOfUnderstanding: false,
       isCorrect: true,
       reasoning: 'Good answer',
+      recommendedAction: null,
+      responseQuality: 'strong',
+      unknownTerms: [],
     };
 
     const result = applyEvaluationToMastery(
@@ -118,12 +122,16 @@ describe('applyEvaluationToMastery', () => {
       status: 'taught',
     };
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'high',
       confusionScore: 0.8,
       confusionSignals: ['vague_answer', 'filler_phrases'],
       errorClassification: 'misconception',
       illusionOfUnderstanding: false,
       isCorrect: false,
       reasoning: 'Student confused',
+      recommendedAction: 'reteach',
+      responseQuality: 'weak',
+      unknownTerms: [],
     };
 
     const result = applyEvaluationToMastery(
@@ -152,12 +160,16 @@ describe('applyEvaluationToMastery', () => {
       status: 'checked',
     };
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'low',
       confusionScore: 0.05,
       confusionSignals: ['no_signal'],
       errorClassification: 'none',
       illusionOfUnderstanding: false,
       isCorrect: true,
       reasoning: 'Excellent transfer',
+      recommendedAction: 'advance',
+      responseQuality: 'strong',
+      unknownTerms: [],
     };
 
     const result = applyEvaluationToMastery(
@@ -174,12 +186,16 @@ describe('applyEvaluationToMastery', () => {
       status: 'taught',
     };
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'moderate',
       confusionScore: 0.3,
       confusionSignals: ['correct_words_weak_reasoning'],
-      errorClassification: 'surface_memorization',
+      errorClassification: 'memorization',
       illusionOfUnderstanding: true,
       isCorrect: true,
       reasoning: 'Correct words but cannot explain reasoning',
+      recommendedAction: 'refine',
+      responseQuality: 'weak',
+      unknownTerms: [],
     };
 
     const result = applyEvaluationToMastery(
@@ -192,12 +208,16 @@ describe('applyEvaluationToMastery', () => {
 
   it('creates initial mastery when none exists', () => {
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'low',
       confusionScore: 0.1,
       confusionSignals: ['no_signal'],
       errorClassification: 'none',
       illusionOfUnderstanding: false,
       isCorrect: true,
       reasoning: 'Good',
+      recommendedAction: null,
+      responseQuality: 'strong',
+      unknownTerms: [],
     };
 
     const result = applyEvaluationToMastery(

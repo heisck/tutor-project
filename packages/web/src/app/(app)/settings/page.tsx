@@ -1,9 +1,23 @@
 'use client';
 
-import { ACADEMIC_LEVELS, type AuthenticatedUser, type UserProfileResponse } from '@ai-tutor-pwa/shared';
-import { useEffect, useState } from 'react';
+import {
+  ACADEMIC_LEVELS,
+  type AuthenticatedUser,
+  type UserProfileResponse,
+} from '@ai-tutor-pwa/shared';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Card, CardContent, CardHeader, Navbar } from '@/components';
+import { Moon, Palette, Save, Sun, UserCircle2 } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Navbar,
+  useTheme,
+  useToast,
+} from '@/components';
 import { api, ApiError } from '@/lib/api';
 
 interface ProfileFormState {
@@ -26,8 +40,27 @@ function toProfileFormState(profile: UserProfileResponse): ProfileFormState {
   };
 }
 
+function SettingsField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-cream-200">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const { showToast } = useToast();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [formState, setFormState] = useState<ProfileFormState>({
@@ -39,9 +72,19 @@ export default function SettingsPage() {
     username: '',
   });
   const [pageError, setPageError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const hasChanges = useMemo(() => {
+    if (profile === null) {
+      return false;
+    }
+
+    const normalizedCurrent = JSON.stringify(toProfileFormState(profile));
+    const normalizedNext = JSON.stringify(formState);
+    return normalizedCurrent !== normalizedNext;
+  }, [formState, profile]);
 
   useEffect(() => {
     async function initialize() {
@@ -71,19 +114,39 @@ export default function SettingsPage() {
   }, [router]);
 
   async function handleLogout() {
-    await api.signOut();
-    router.push('/');
+    try {
+      setLoggingOut(true);
+      await api.signOut();
+      showToast({
+        title: 'Signed out',
+        description: 'Your session ended safely.',
+        variant: 'success',
+      });
+      router.push('/');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to sign out.';
+      setPageError(message);
+      showToast({
+        title: 'Could not sign out',
+        description: message,
+        variant: 'error',
+      });
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   async function saveProfile() {
     try {
       setSaving(true);
       setPageError(null);
-      setSuccessMessage(null);
 
       const updatedProfile = await api.updateProfile({
         department:
-          formState.department.trim().length === 0 ? null : formState.department.trim(),
+          formState.department.trim().length === 0
+            ? null
+            : formState.department.trim(),
         institution:
           formState.institutionName.trim().length === 0
             ? null
@@ -103,19 +166,41 @@ export default function SettingsPage() {
             ? null
             : (formState.level as UserProfileResponse['level']),
         username:
-          formState.username.trim().length === 0 ? null : formState.username.trim(),
+          formState.username.trim().length === 0
+            ? null
+            : formState.username.trim(),
       });
 
       setProfile(updatedProfile);
       setFormState(toProfileFormState(updatedProfile));
-      setSuccessMessage('Profile settings saved.');
+      showToast({
+        title: 'Settings saved',
+        description: 'Your profile is ready for the next session.',
+        variant: 'success',
+      });
     } catch (error) {
-      setPageError(
-        error instanceof Error ? error.message : 'Failed to save profile settings.',
-      );
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to save profile settings.';
+      setPageError(message);
+      showToast({
+        title: 'Could not save settings',
+        description: message,
+        variant: 'error',
+      });
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleThemeToggle() {
+    toggleTheme();
+    showToast({
+      title: `Switched to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`,
+      description: 'You can change this again anytime.',
+      variant: 'info',
+    });
   }
 
   if (initializing) {
@@ -132,16 +217,21 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-ink">
-      <Navbar user={user} onLogout={handleLogout} />
+      <Navbar user={user} onLogout={loggingOut ? undefined : handleLogout} />
 
-      <div className="max-w-5xl mx-auto px-6 py-12 space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold text-cream-50 font-fraunces mb-2">
-            Settings
-          </h1>
-          <p className="text-lg text-cream-300">
-            These values are used by session creation and profile-aware tutoring.
-          </p>
+      <div className="max-w-6xl mx-auto px-6 py-12 space-y-8">
+        <div className="space-y-3">
+          <Badge variant="info" size="sm">
+            Account and appearance
+          </Badge>
+          <div>
+            <h1 className="text-4xl font-bold text-cream-50 font-fraunces mb-2">
+              Settings
+            </h1>
+            <p className="text-lg text-cream-300">
+              Keep your profile current and make the workspace comfortable to use.
+            </p>
+          </div>
         </div>
 
         {pageError && (
@@ -150,26 +240,18 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {successMessage && (
-          <div className="px-4 py-3 rounded-lg bg-mastery-500/10 border border-mastery-500/20 text-mastery-300">
-            {successMessage}
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8">
+        <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
           <Card variant="gradient">
             <CardHeader
-              description="Update the persisted profile returned by the backend profile routes."
-              title="Profile"
+              title="Learning profile"
+              description="These details shape how sessions are prepared for you."
+              icon={<UserCircle2 className="text-amber-300" size={20} />}
             />
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Username
-                  </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <SettingsField label="Username">
                   <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                    className="input w-full"
                     onChange={(event) =>
                       setFormState((currentState) => ({
                         ...currentState,
@@ -179,13 +261,10 @@ export default function SettingsPage() {
                     type="text"
                     value={formState.username}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Department
-                  </label>
+                </SettingsField>
+                <SettingsField label="Department">
                   <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                    className="input w-full"
                     onChange={(event) =>
                       setFormState((currentState) => ({
                         ...currentState,
@@ -195,13 +274,10 @@ export default function SettingsPage() {
                     type="text"
                     value={formState.department}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Academic Level
-                  </label>
+                </SettingsField>
+                <SettingsField label="Academic level">
                   <select
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                    className="input w-full"
                     onChange={(event) =>
                       setFormState((currentState) => ({
                         ...currentState,
@@ -217,13 +293,10 @@ export default function SettingsPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Institution Name
-                  </label>
+                </SettingsField>
+                <SettingsField label="Institution name">
                   <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                    className="input w-full"
                     onChange={(event) =>
                       setFormState((currentState) => ({
                         ...currentState,
@@ -233,13 +306,10 @@ export default function SettingsPage() {
                     type="text"
                     value={formState.institutionName}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Institution Type
-                  </label>
+                </SettingsField>
+                <SettingsField label="Institution type">
                   <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                    className="input w-full"
                     onChange={(event) =>
                       setFormState((currentState) => ({
                         ...currentState,
@@ -249,13 +319,10 @@ export default function SettingsPage() {
                     type="text"
                     value={formState.institutionType}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cream-200 mb-2 font-fraunces">
-                    Institution Country
-                  </label>
+                </SettingsField>
+                <SettingsField label="Institution country">
                   <input
-                    className="w-full px-4 py-3 rounded-lg bg-ink-800 border border-ink-700 text-cream-50"
+                    className="input w-full"
                     onChange={(event) =>
                       setFormState((currentState) => ({
                         ...currentState,
@@ -265,47 +332,97 @@ export default function SettingsPage() {
                     type="text"
                     value={formState.institutionCountry}
                   />
-                </div>
+                </SettingsField>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-4">
+                <Button
+                  className="min-w-[180px]"
+                  disabled={!hasChanges}
+                  icon={<Save size={16} />}
+                  loading={saving}
+                  loadingText="Saving..."
+                  onClick={() => void saveProfile()}
+                  variant="primary"
+                >
+                  Save changes
+                </Button>
+                <Button
+                  disabled={!hasChanges}
+                  onClick={() =>
+                    profile !== null && setFormState(toProfileFormState(profile))
+                  }
+                  variant="ghost"
+                >
+                  Reset
+                </Button>
               </div>
             </CardContent>
-            <div className="pt-6">
-              <Button
-                className="w-full"
-                loading={saving}
-                onClick={() => void saveProfile()}
-                variant="primary"
-              >
-                Save Settings
-              </Button>
-            </div>
           </Card>
 
-          <Card>
-            <CardHeader
-              description="Current profile values coming back from the API."
-              title="Snapshot"
-            />
-            <CardContent>
-              <div className="space-y-4 text-sm text-cream-300">
-                <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                  <p className="text-cream-400 mb-1">Email</p>
-                  <p>{profile?.email ?? user.email}</p>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader
+                title="Appearance"
+                description="Pick the mode that feels easiest to read."
+                icon={<Palette className="text-ai-blue-300" size={20} />}
+              />
+              <CardContent>
+                <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-cream-50">Theme</p>
+                      <p className="text-sm text-cream-400">
+                        {resolvedTheme === 'dark'
+                          ? 'Dark mode is active.'
+                          : 'Light mode is active.'}
+                      </p>
+                    </div>
+                    <Button
+                      icon={
+                        resolvedTheme === 'dark' ? (
+                          <Sun size={16} />
+                        ) : (
+                          <Moon size={16} />
+                        )
+                      }
+                      onClick={handleThemeToggle}
+                      variant="outline"
+                    >
+                      {resolvedTheme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+                    </Button>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                  <p className="text-cream-400 mb-1">Username</p>
-                  <p>{profile?.username ?? 'Not set'}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Account snapshot"
+                description="A quick view of the profile currently stored."
+              />
+              <CardContent>
+                <div className="space-y-3 text-sm text-cream-300">
+                  <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
+                    <p className="text-cream-400 mb-1">Email</p>
+                    <p>{profile?.email ?? user.email}</p>
+                  </div>
+                  <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
+                    <p className="text-cream-400 mb-1">Username</p>
+                    <p>{profile?.username ?? 'Not set'}</p>
+                  </div>
+                  <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
+                    <p className="text-cream-400 mb-1">Academic level</p>
+                    <p>{profile?.level ?? 'Not set'}</p>
+                  </div>
+                  <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
+                    <p className="text-cream-400 mb-1">Institution</p>
+                    <p>{profile?.institution?.name ?? 'Not set'}</p>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                  <p className="text-cream-400 mb-1">Academic Level</p>
-                  <p>{profile?.level ?? 'Not set'}</p>
-                </div>
-                <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-                  <p className="text-cream-400 mb-1">Institution</p>
-                  <p>{profile?.institution?.name ?? 'Not set'}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

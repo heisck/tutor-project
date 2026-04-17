@@ -257,7 +257,23 @@ function createHandoffInput(
       },
     ],
     resumeNotes: 'Resume from the concept that needs reinforcement',
+    turnState: {
+      currentCognitiveLoad: 'low',
+      lastErrorClassification: null,
+      lastRecommendedAction: 'check',
+      modeQueueCursor: segment.ordinal,
+      recentConfusionSignals: [],
+      responseQuality: 'adequate',
+      unknownTermsQueue: [],
+    },
     unresolvedAtuIds: [segment.atuIds[0]!],
+    voiceState: {
+      isHandsFree: false,
+      lastTranscript: null,
+      lastTutorMessageId: null,
+      pendingCommand: null,
+      playbackRate: 1,
+    },
   };
 }
 

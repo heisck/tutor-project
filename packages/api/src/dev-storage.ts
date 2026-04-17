@@ -58,6 +58,12 @@ export class DevInMemoryR2StorageClient
       metadata: storedObject.metadata,
     };
   }
+
+  public async deleteObject(input: {
+    key: string;
+  }): Promise<void> {
+    this.storage.delete(input.key);
+  }
 }
 
 export function shouldUseDevStorage(r2Endpoint: string): boolean {

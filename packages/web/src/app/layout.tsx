@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, Source_Serif_4, DM_Mono } from 'next/font/google';
+import { AppProviders } from '@/components';
 import './globals.css';
 
 // ── Fraunces: editorial display serif (variable font) ──
@@ -43,7 +44,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#080c14',
-  colorScheme: 'dark',
+  colorScheme: 'dark light',
   width: 'device-width',
   initialScale: 1,
 };
@@ -58,7 +59,9 @@ export default function RootLayout({
       lang="en"
       className={`${fraunces.variable} ${sourceSerif.variable} ${dmMono.variable}`}
     >
-      <body className="bg-ink text-cream antialiased">{children}</body>
+      <body className="bg-ink text-cream antialiased">
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

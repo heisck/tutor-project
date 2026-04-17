@@ -7,22 +7,29 @@ import type {
 } from '@ai-tutor-pwa/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BookOpen, ChevronRight, LoaderCircle, Upload } from 'lucide-react';
 import {
-  BookOpen,
-  ChevronRight,
-  Upload,
-} from 'lucide-react';
-import { Button, Card, CardContent, CardFooter, CardHeader, Navbar } from '@/components';
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  Navbar,
+  useToast,
+} from '@/components';
 import { api, ApiError } from '@/lib/api';
-import { formatRelativeTime } from '@/lib/utils';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [documents, setDocuments] = useState<DocumentListItemResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
 
   const readyDocuments = useMemo(
     () => documents.filter((document) => document.processingStatus === 'complete'),
@@ -69,14 +76,39 @@ export default function DashboardPage() {
   }, [router]);
 
   async function handleLogout() {
-    await api.signOut();
-    router.push('/');
+    try {
+      setLoggingOut(true);
+      await api.signOut();
+      showToast({
+        title: 'Signed out',
+        description: 'Your session ended safely.',
+        variant: 'success',
+      });
+      router.push('/');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to sign out.';
+      setPageError(message);
+      showToast({
+        title: 'Could not sign out',
+        description: message,
+        variant: 'error',
+      });
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  function startLesson(documentId: string) {
+    setNavigatingTo(documentId);
+    router.push(`/session?documentId=${documentId}`);
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-ink flex items-center justify-center">
-        <div className="text-center text-cream-300">
+        <div className="flex items-center gap-3 text-cream-300">
+          <LoaderCircle className="animate-spin" size={18} />
           Loading your learning space...
         </div>
       </div>
@@ -94,14 +126,16 @@ export default function DashboardPage() {
         <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-ai-blue-600/5 rounded-full blur-3xl" />
       </div>
 
-      <Navbar user={user} onLogout={handleLogout} />
+      <Navbar user={user} onLogout={loggingOut ? undefined : handleLogout} />
 
       <div className="relative max-w-4xl mx-auto px-6 py-8 space-y-8">
-        {/* Simple greeting */}
         <div>
           <h1 className="text-3xl font-bold text-cream-50 font-fraunces mb-1">
             Welcome back, {user.username || user.email.split('@')[0]}
           </h1>
+          <p className="text-cream-400">
+            Pick the next ready lesson or upload something new.
+          </p>
         </div>
 
         {pageError && (
@@ -110,43 +144,57 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Main action card */}
         {readyDocuments.length > 0 ? (
-          // Continue Learning card (if documents exist)
           <Card variant="gradient">
-            <CardHeader>
-              <div>
-                <p className="label-mono text-xs text-amber mb-2">Ready to learn</p>
-                <h2 className="display-md text-cream-50 font-fraunces mb-1">
-                  What would you like to study?
-                </h2>
-              </div>
-            </CardHeader>
+            <CardHeader
+              title="Continue learning"
+              description="Ready lessons open straight into tutoring."
+            />
             <CardContent>
               <div className="space-y-3">
-                {readyDocuments.slice(0, 3).map((document) => (
-                  <button
-                    key={document.documentId}
-                    onClick={() => router.push('/session')}
-                    className="w-full text-left p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all group"
-                    type="button"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <BookOpen size={20} className="text-amber mt-1 shrink-0" />
-                        <div>
-                          <h3 className="font-semibold text-cream-50">
-                            {document.fileName}
-                          </h3>
-                          <p className="text-xs text-cream-400 mt-1">
-                            Start learning from this document
-                          </p>
+                {readyDocuments.slice(0, 3).map((document) => {
+                  const opening = navigatingTo === document.documentId;
+
+                  return (
+                    <button
+                      key={document.documentId}
+                      onClick={() => startLesson(document.documentId)}
+                      className="w-full text-left p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/50 active:scale-[0.99] transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+                      disabled={opening}
+                      type="button"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <BookOpen
+                            size={20}
+                            className="text-amber mt-1 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <h3 className="truncate font-semibold text-cream-50">
+                              {document.fileName}
+                            </h3>
+                            <p className="text-xs text-cream-400 mt-1">
+                              {opening
+                                ? 'Opening your lesson...'
+                                : 'Start learning from this file'}
+                            </p>
+                          </div>
                         </div>
+                        {opening ? (
+                          <LoaderCircle
+                            size={18}
+                            className="animate-spin text-amber shrink-0"
+                          />
+                        ) : (
+                          <ChevronRight
+                            size={18}
+                            className="text-cream-400 group-hover:text-amber transition-colors shrink-0"
+                          />
+                        )}
                       </div>
-                      <ChevronRight size={18} className="text-cream-400 group-hover:text-amber transition-colors shrink-0" />
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </CardContent>
             <CardFooter>
@@ -160,19 +208,15 @@ export default function DashboardPage() {
             </CardFooter>
           </Card>
         ) : (
-          // Start Learning card (if no documents)
           <Card variant="gradient">
-            <CardHeader>
-              <div>
-                <p className="label-mono text-xs text-amber mb-2">Get started</p>
-                <h2 className="display-md text-cream-50 font-fraunces">
-                  Upload your first document
-                </h2>
-              </div>
-            </CardHeader>
+            <CardHeader
+              title="Upload your first file"
+              description="Bring in a document, then we will turn it into a lesson."
+            />
             <CardContent>
-              <p className="text-cream-300 mb-6">
-                Upload a PDF or document, and we&apos;ll guide you through learning its content.
+              <p className="text-cream-300">
+                PDF, notes, audio, and class material can all become guided study
+                sessions here.
               </p>
             </CardContent>
             <CardFooter>
@@ -181,21 +225,23 @@ export default function DashboardPage() {
                 size="sm"
                 variant="primary"
               >
-                Upload document <Upload size={16} />
+                Upload file <Upload size={16} />
               </Button>
             </CardFooter>
           </Card>
         )}
 
-        {/* Progress snapshot - minimal and non-interactive */}
-        {readyDocuments.length > 0 && (
-          <div className="text-center text-cream-400 text-sm py-4">
-            <p>
-              {readyDocuments.length > 0 && `${readyDocuments.length} document${readyDocuments.length !== 1 ? 's' : ''} ready`}
-              {processingDocuments.length > 0 && ` • ${processingDocuments.length} processing`}
-            </p>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3 text-sm text-cream-400">
+          <Badge variant="info" size="sm">
+            {courses.length} course{courses.length === 1 ? '' : 's'}
+          </Badge>
+          <span>
+            {readyDocuments.length} ready
+            {processingDocuments.length > 0
+              ? ` • ${processingDocuments.length} preparing`
+              : ''}
+          </span>
+        </div>
       </div>
     </div>
   );

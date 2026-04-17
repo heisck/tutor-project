@@ -9,12 +9,6 @@ import type {
   StudySessionStateResponse,
   TutorStreamEvent,
 } from '@ai-tutor-pwa/shared';
-import {
-  ACADEMIC_LEVELS,
-  EXPLANATION_START_PREFERENCES,
-  STUDY_GOAL_PREFERENCES,
-  STUDY_SESSION_MODES,
-} from '@ai-tutor-pwa/shared';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -22,15 +16,12 @@ import {
   Lightbulb,
   LoaderCircle,
   MessageSquare,
-  Mic,
   Pause,
   Play,
-  RefreshCw,
   RotateCcw,
   Send,
   Sparkles,
   Upload,
-  Volume2,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { cn, formatRelativeTime } from '@/lib/utils';
@@ -58,14 +49,6 @@ function findCurrentSegment(state: StudySessionStateResponse) {
     state.teachingPlan.segments.find((s) => s.id === state.session.currentSegmentId) ??
     state.teachingPlan.segments[0]
   );
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const ab = await blob.arrayBuffer();
-  let binary = '';
-  const bytes = new Uint8Array(ab);
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary);
 }
 
 // ─── Markdown renderer (no dependencies) ─────────────────────────────────────
@@ -298,35 +281,6 @@ function MasteryBar({
   );
 }
 
-function SelectField<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: readonly T[];
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div>
-      <label className="label-mono text-xs text-cream-muted block mb-1.5">{label}</label>
-      <select
-        className="input text-sm"
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-      >
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt.replaceAll('_', ' ')}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
 // ─── Loading ──────────────────────────────────────────────────────────────────
 
 function SessionPageLoading() {
@@ -345,25 +299,17 @@ function SessionPageLoading() {
 function SessionLauncher({
   documents,
   selectedDocumentId,
-  mode,
-  calibration,
   launching,
   error,
   onSelectDocument,
-  onSetMode,
-  onSetCalibration,
   onStart,
   onUpload,
 }: {
   documents: DocumentListItemResponse[];
   selectedDocumentId: string;
-  mode: StudySessionMode;
-  calibration: MiniCalibrationInput;
   launching: boolean;
   error: string | null;
   onSelectDocument: (id: string) => void;
-  onSetMode: (m: StudySessionMode) => void;
-  onSetCalibration: (c: MiniCalibrationInput) => void;
   onStart: () => void;
   onUpload: () => void;
 }) {
@@ -471,19 +417,15 @@ function ActiveSession({
   asking,
   submittingAnswer,
   requestingTurn,
-  recording,
   voiceCommandBusy,
-  voiceTranscript,
   audioUrl,
   error,
   onInputChange,
   onSubmitAnswer,
   onAskQuestion,
   onNextTurn,
-  onToggleRecording,
-  onPlayAudio,
   onSendCommand,
-  onRefresh,
+  onAudioError,
   onBack,
   messagesEndRef,
 }: {
@@ -493,21 +435,17 @@ function ActiveSession({
   asking: boolean;
   submittingAnswer: boolean;
   requestingTurn: boolean;
-  recording: boolean;
   voiceCommandBusy: boolean;
-  voiceTranscript: string | null;
   audioUrl: string | null;
   error: string | null;
   onInputChange: (v: string) => void;
   onSubmitAnswer: (v: string) => void;
   onAskQuestion: (v: string) => void;
   onNextTurn: () => void;
-  onToggleRecording: () => void;
-  onPlayAudio: () => void;
   onSendCommand: (
     cmd: 'pause' | 'continue' | 'slower' | 'repeat' | 'simpler' | 'example' | 'go_back' | 'test_me',
   ) => void;
-  onRefresh: () => void;
+  onAudioError: () => void;
   onBack: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }) {
@@ -634,21 +572,12 @@ function ActiveSession({
               </button>
             </div>
 
-            {voiceTranscript && (
-              <p className="label-mono text-xs text-cream-muted">
-                Transcript: {voiceTranscript}
-              </p>
-            )}
             {audioUrl && (
               <audio
                 className="w-full h-8"
                 controls
                 src={audioUrl}
-                onError={() => {
-                  URL.revokeObjectURL(audioUrl);
-                  setAudioUrl(null);
-                  setPageError('Audio playback failed. Try playing the message again.');
-                }}
+                onError={onAudioError}
               />
             )}
           </div>
@@ -816,14 +745,11 @@ function SessionPageContent() {
   const documentIdParam = searchParams.get('documentId');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
 
   const [, setUser] = useState<AuthenticatedUser | null>(null);
   const [documents, setDocuments] = useState<DocumentListItemResponse[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState('');
-  const [mode, setMode] = useState<StudySessionMode>('full');
+  const mode: StudySessionMode = 'full';
   const [calibration, setCalibration] = useState<MiniCalibrationInput>(DEFAULT_CALIBRATION);
 
   const [activeSession, setActiveSession] = useState<StudySessionStateResponse | null>(null);
@@ -836,9 +762,7 @@ function SessionPageContent() {
   const [asking, setAsking] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [requestingTurn, setRequestingTurn] = useState(false);
-  const [recording, setRecording] = useState(false);
   const [voiceCommandBusy, setVoiceCommandBusy] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const readyDocuments = useMemo(
@@ -854,8 +778,6 @@ function SessionPageContent() {
   // Cleanup media + audio on unmount
   useEffect(() => {
     return () => {
-      mediaRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
   }, [audioUrl]);
@@ -1049,27 +971,6 @@ function SessionPageContent() {
     }
   }
 
-  async function playLatestMessage() {
-    if (!activeSession) return;
-    const latest = [...messages].reverse().find((m) => m.role === 'assistant');
-    if (!latest) return;
-    try {
-      const synth = await api.synthesizeTutorAudio(
-        activeSession.session.id,
-        latest.content,
-        activeSession.modeContext.voiceState?.playbackRate,
-      );
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      const blob = new Blob(
-        [Uint8Array.from(atob(synth.audioBase64), (c) => c.charCodeAt(0))],
-        { type: synth.contentType },
-      );
-      setAudioUrl(URL.createObjectURL(blob));
-    } catch (err) {
-      setPageError(err instanceof Error ? err.message : 'Failed to synthesize audio.');
-    }
-  }
-
   async function sendVoiceCommand(
     cmd: 'pause' | 'continue' | 'slower' | 'repeat' | 'simpler' | 'example' | 'go_back' | 'test_me',
   ) {
@@ -1094,56 +995,12 @@ function SessionPageContent() {
     }
   }
 
-  async function toggleRecording() {
-    if (!activeSession) return;
-    if (recording) {
-      mediaRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-      setRecording(false);
-      return;
+  function handleAudioError() {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      mediaStreamRef.current = stream;
-      mediaRecorderRef.current = rec;
-      audioChunksRef.current = [];
-
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      rec.onstop = async () => {
-        try {
-          const blob = new Blob(audioChunksRef.current, { type: rec.mimeType || 'audio/webm' });
-          const b64 = await blobToBase64(blob);
-          const tx = await api.transcribeTutorAudio(activeSession.session.id, b64, rec.mimeType || 'audio/webm');
-          setVoiceTranscript(tx.transcript);
-          setInput(tx.transcript);
-        } catch (err) {
-          setPageError(err instanceof Error ? err.message : 'Transcription failed.');
-        }
-      };
-
-      rec.start();
-      setRecording(true);
-    } catch (err) {
-      setPageError(err instanceof Error ? err.message : 'Microphone unavailable.');
-    }
-  }
-
-  async function refreshState() {
-    if (!activeSession) return;
-    try {
-      const [docs, state] = await Promise.all([
-        api.listDocuments(),
-        api.getSessionState(activeSession.session.id),
-      ]);
-      setDocuments(docs);
-      setActiveSession(state);
-    } catch (err) {
-      setPageError(err instanceof Error ? err.message : 'Failed to refresh.');
-    }
+    setPageError('Audio playback failed. Try again.');
   }
 
   if (initializing) return <SessionPageLoading />;
@@ -1153,13 +1010,9 @@ function SessionPageContent() {
       <SessionLauncher
         documents={readyDocuments}
         selectedDocumentId={selectedDocumentId}
-        mode={mode}
-        calibration={calibration}
         launching={launching}
         error={pageError}
         onSelectDocument={setSelectedDocumentId}
-        onSetMode={setMode}
-        onSetCalibration={setCalibration}
         onStart={() => void startSession()}
         onUpload={() => router.push('/upload')}
       />
@@ -1174,19 +1027,15 @@ function SessionPageContent() {
       asking={asking}
       submittingAnswer={submittingAnswer}
       requestingTurn={requestingTurn}
-      recording={recording}
       voiceCommandBusy={voiceCommandBusy}
-      voiceTranscript={voiceTranscript}
       audioUrl={audioUrl}
       error={pageError}
       onInputChange={setInput}
       onSubmitAnswer={(v) => void submitAnswer(v)}
       onAskQuestion={(v) => void askQuestion(v)}
       onNextTurn={() => activeSession && void triggerTutorTurn(activeSession.session.id)}
-      onToggleRecording={() => void toggleRecording()}
-      onPlayAudio={() => void playLatestMessage()}
       onSendCommand={(cmd) => void sendVoiceCommand(cmd)}
-      onRefresh={() => void refreshState()}
+      onAudioError={handleAudioError}
       onBack={() => router.replace('/session')}
       messagesEndRef={messagesEndRef}
     />

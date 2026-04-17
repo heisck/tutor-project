@@ -17,7 +17,6 @@ import {
 import { STUDY_SESSION_MODES } from './sessions.js';
 
 export { tutorActionSchema };
-type TutorAction = z.infer<typeof tutorActionSchema>;
 
 export const learnerResponseSchema = z
   .object({
@@ -29,10 +28,8 @@ export const learnerResponseSchema = z
 export type LearnerResponse = z.infer<typeof learnerResponseSchema>;
 
 export { errorClassificationSchema };
-type ErrorClassification = z.infer<typeof errorClassificationSchema>;
 
 export { confusionSignalSchema };
-type ConfusionSignal = z.infer<typeof confusionSignalSchema>;
 
 export const responseEvaluationSchema = z.object({
   cognitiveLoad: cognitiveLoadSchema,

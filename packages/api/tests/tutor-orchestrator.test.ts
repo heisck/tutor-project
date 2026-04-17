@@ -12,6 +12,7 @@ function createTestSegment(overrides: Partial<LessonSegmentRecord> = {}): Lesson
   return {
     analogyPrompt: 'Ground cells in an everyday example',
     atuIds: ['atu-1'],
+    checkTypeBias: ['explanation', 'transfer'],
     checkPrompt: 'Explain cells in your own words',
     chunkIds: ['chunk-1'],
     conceptDescription: 'What a cell is',
@@ -28,6 +29,8 @@ function createTestSegment(overrides: Partial<LessonSegmentRecord> = {}): Lesson
     },
     ordinal: 0,
     prerequisiteConceptIds: [],
+    reviewPriority: null,
+    selectionReason: 'prerequisite_order',
     sectionId: null,
     sourceOrdinal: 0,
     sourceUnitIds: ['su-1'],
@@ -41,6 +44,13 @@ function createTestSessionState(
   currentSegmentId: string | null = null,
 ): StudySessionStateResponse {
   return {
+    atuAuditSummary: {
+      checkedCount: 0,
+      resolvedCount: 0,
+      taughtCount: 0,
+      totalCount: segments.flatMap((segment) => segment.atuIds).length,
+      unresolvedCount: segments.flatMap((segment) => segment.atuIds).length,
+    },
     continuity: {
       hasInterruptedState: false,
       interruptedAt: null,
@@ -59,6 +69,22 @@ function createTestSessionState(
       explanationStartPreference: 'example_first',
       lastCalibratedAt: null,
       sessionGoal: 'deep_understanding',
+    },
+    modeContext: {
+      activeMode: 'full',
+      checkTypeBias: segments[0]?.checkTypeBias ?? [],
+      currentSelectionReason: segments[0]?.selectionReason ?? 'prerequisite_order',
+      degradedReason: null,
+      queueCursor: 0,
+      queuePreview: segments.slice(0, 3).map((segment) => ({
+        conceptId: segment.conceptId,
+        conceptTitle: segment.conceptTitle,
+        segmentId: segment.id,
+        selectionReason: segment.selectionReason,
+      })),
+      queueSize: segments.length,
+      reviewPriority: segments[0]?.reviewPriority ?? null,
+      voiceState: null,
     },
     session: {
       createdAt: '2026-04-14T00:00:00.000Z',
@@ -178,7 +204,7 @@ describe('orchestrateTutorNextStep', () => {
     expect(result.decision.action).toBe('reteach');
   });
 
-  it('decides to complete segment when mastery gate passes and next segment exists', () => {
+  it('decides to advance when mastery gate passes and next segment exists', () => {
     const segment1 = createTestSegment({ id: 'segment-1', ordinal: 0 });
     const segment2 = createTestSegment({
       conceptId: 'concept-2',
@@ -218,7 +244,7 @@ describe('orchestrateTutorNextStep', () => {
       sessionState: state,
     });
 
-    expect(result.decision.action).toBe('complete_segment');
+    expect(result.decision.action).toBe('advance');
   });
 
   it('decides to complete session when mastered and no next segment', () => {

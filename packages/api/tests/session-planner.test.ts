@@ -85,6 +85,7 @@ describe('session planner', () => {
     const teachingPlan = await persistTeachingPlanForSession(prisma, {
       documentId: document.id,
       learningProfile,
+      mode: 'full',
       sessionId: session.id,
       userId: user.id,
     });
@@ -173,6 +174,7 @@ describe('session planner', () => {
       persistTeachingPlanForSession(prisma, {
         documentId: document.id,
         learningProfile,
+        mode: 'full',
         sessionId: session.id,
         userId: user.id,
       }),

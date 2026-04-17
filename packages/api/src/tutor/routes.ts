@@ -10,6 +10,8 @@ import {
   type SessionExplanationHistoryItem,
   type SessionMasterySnapshotItem,
   type TutorAction,
+  sessionTutorTurnStateSchema,
+  voiceSessionStateSchema,
 } from '@ai-tutor-pwa/shared';
 import type { FastifyInstance } from 'fastify';
 
@@ -191,14 +193,16 @@ export async function registerTutorRoutes(
               nextSegment?.conceptTitle ?? null,
             ),
             turnState: {
-              ...(sessionState.handoffSnapshot?.turnState ?? {}),
+              ...createDefaultTurnState(sessionState.handoffSnapshot?.turnState),
               lastRecommendedAction: streamResult.decisionAction,
               modeQueueCursor: nextSegment?.ordinal ?? currentSegment.ordinal,
             },
             unresolvedAtuIds:
               sessionState.handoffSnapshot?.unresolvedAtuIds ??
               sessionState.summary.unresolvedAtuIds,
-            voiceState: sessionState.handoffSnapshot?.voiceState ?? {},
+            voiceState: createDefaultVoiceState(
+              sessionState.handoffSnapshot?.voiceState,
+            ),
           },
           sessionId: parsedBody.data.sessionId,
           userId: request.auth!.userId,
@@ -376,6 +380,7 @@ export async function registerTutorRoutes(
             masteryResult.masteryRecord.status,
           ),
           turnState: {
+            ...createDefaultTurnState(sessionState.handoffSnapshot?.turnState),
             currentCognitiveLoad: evaluationResult.evaluation.cognitiveLoad,
             lastErrorClassification:
               evaluationResult.evaluation.errorClassification,
@@ -391,7 +396,9 @@ export async function registerTutorRoutes(
             segment.atuIds,
             masteryResult.coverageStatusUpdate,
           ),
-          voiceState: sessionState.handoffSnapshot?.voiceState ?? {},
+          voiceState: createDefaultVoiceState(
+            sessionState.handoffSnapshot?.voiceState,
+          ),
         },
         sessionId,
         userId,
@@ -525,7 +532,7 @@ export async function registerTutorRoutes(
         mimeType: parsedBody.data.mimeType,
       });
       const voiceState = {
-        ...(sessionState.handoffSnapshot?.voiceState ?? {}),
+        ...createDefaultVoiceState(sessionState.handoffSnapshot?.voiceState),
         isHandsFree: true,
         lastTranscript: transcriptionResult.transcript,
         pendingCommand: null,
@@ -546,7 +553,7 @@ export async function registerTutorRoutes(
             sessionState.handoffSnapshot?.explanationHistory ?? [],
           masterySnapshot: sessionState.handoffSnapshot?.masterySnapshot ?? [],
           resumeNotes: sessionState.handoffSnapshot?.resumeNotes ?? null,
-          turnState: sessionState.handoffSnapshot?.turnState ?? {},
+          turnState: createDefaultTurnState(sessionState.handoffSnapshot?.turnState),
           unresolvedAtuIds:
             sessionState.handoffSnapshot?.unresolvedAtuIds ??
             sessionState.summary.unresolvedAtuIds,
@@ -594,7 +601,7 @@ export async function registerTutorRoutes(
         text: parsedBody.data.text,
       });
       const voiceState = {
-        ...(sessionState.handoffSnapshot?.voiceState ?? {}),
+        ...createDefaultVoiceState(sessionState.handoffSnapshot?.voiceState),
         playbackRate: synthesisResult.playbackRate,
       };
 
@@ -613,7 +620,7 @@ export async function registerTutorRoutes(
             sessionState.handoffSnapshot?.explanationHistory ?? [],
           masterySnapshot: sessionState.handoffSnapshot?.masterySnapshot ?? [],
           resumeNotes: sessionState.handoffSnapshot?.resumeNotes ?? null,
-          turnState: sessionState.handoffSnapshot?.turnState ?? {},
+          turnState: createDefaultTurnState(sessionState.handoffSnapshot?.turnState),
           unresolvedAtuIds:
             sessionState.handoffSnapshot?.unresolvedAtuIds ??
             sessionState.summary.unresolvedAtuIds,
@@ -663,7 +670,7 @@ export async function registerTutorRoutes(
       );
       const nextAction = mapVoiceCommandToTutorAction(parsedBody.data.command);
       const voiceState = {
-        ...(sessionState.handoffSnapshot?.voiceState ?? {}),
+        ...createDefaultVoiceState(sessionState.handoffSnapshot?.voiceState),
         isHandsFree: true,
         pendingCommand: null,
         playbackRate:
@@ -698,7 +705,7 @@ export async function registerTutorRoutes(
               ? `Go back to ${previousSegment.conceptTitle} before continuing.`
               : sessionState.handoffSnapshot?.resumeNotes ?? null,
           turnState: {
-            ...(sessionState.handoffSnapshot?.turnState ?? {}),
+            ...createDefaultTurnState(sessionState.handoffSnapshot?.turnState),
             lastRecommendedAction: nextAction,
             modeQueueCursor:
               parsedBody.data.command === 'go_back' && previousSegment !== null
@@ -725,6 +732,18 @@ export async function registerTutorRoutes(
       });
     },
   );
+}
+
+function createDefaultTurnState(
+  turnState: unknown,
+) {
+  return sessionTutorTurnStateSchema.parse(turnState ?? {});
+}
+
+function createDefaultVoiceState(
+  voiceState: unknown,
+) {
+  return voiceSessionStateSchema.parse(voiceState ?? {});
 }
 
 function mergeMasterySnapshot(

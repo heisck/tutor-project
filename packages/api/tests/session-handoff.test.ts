@@ -272,7 +272,23 @@ function createHandoffInput(
       },
     ],
     resumeNotes: 'Restart from the concept that still feels shaky',
+    turnState: {
+      currentCognitiveLoad: 'low',
+      lastErrorClassification: null,
+      lastRecommendedAction: 'check',
+      modeQueueCursor: segment.ordinal,
+      recentConfusionSignals: [],
+      responseQuality: 'adequate',
+      unknownTermsQueue: [],
+    },
     unresolvedAtuIds: [segment.atuIds[0]!],
+    voiceState: {
+      isHandsFree: false,
+      lastTranscript: null,
+      lastTutorMessageId: null,
+      pendingCommand: null,
+      playbackRate: 1,
+    },
   };
 }
 

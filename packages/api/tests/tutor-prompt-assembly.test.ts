@@ -27,9 +27,19 @@ function createBaseContext(
       },
     ],
     masteryState: null,
+    modeContext: {
+      activeMode: 'full',
+      checkTypeBias: [],
+      currentSelectionReason: 'prerequisite_order',
+      degradedReason: null,
+      queueCursor: 0,
+      queueSize: 1,
+      reviewPriority: null,
+    },
     previousExplanationTypes: [],
     segmentAnalogyPrompt: 'Ground cells in an everyday example',
     segmentCheckPrompt: 'Explain cells in your own words',
+    unknownTermsQueue: [],
     ...overrides,
   };
 }
@@ -154,11 +164,11 @@ describe('assembleTutorUserPrompt', () => {
     expect(prompt).toContain('unresolved');
   });
 
-  it('builds complete segment prompt', () => {
+  it('builds advance prompt', () => {
     const prompt = assembleTutorUserPrompt(
-      createBaseContext({ action: 'complete_segment' }),
+      createBaseContext({ action: 'advance' }),
     );
-    expect(prompt).toContain('Great work');
+    expect(prompt).toContain('advance');
     expect(prompt).toContain('Cells');
   });
 

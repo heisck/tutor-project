@@ -9,6 +9,7 @@ import {
   TUTOR_PATHS,
   tutorStreamEventSchema,
   type MiniCalibrationInput,
+  type SessionHandoffSnapshotInput,
   type StudySessionLifecycleResponse,
   type StudySessionStateResponse,
   type TutorAssistantQuestionResponse,
@@ -247,15 +248,7 @@ async function askAssistant(
 
 function buildPauseHandoff(
   state: StudySessionStateResponse,
-): {
-  currentSectionId: string | null;
-  currentSegmentId: string;
-  currentStep: number;
-  explanationHistory: readonly unknown[];
-  masterySnapshot: readonly unknown[];
-  resumeNotes: string | null;
-  unresolvedAtuIds: readonly string[];
-} {
+): SessionHandoffSnapshotInput {
   return {
     currentSectionId:
       state.continuity.resumeSectionId ?? state.session.currentSectionId,
@@ -265,7 +258,25 @@ function buildPauseHandoff(
     explanationHistory: state.handoffSnapshot?.explanationHistory ?? [],
     masterySnapshot: state.continuity.masterySnapshot,
     resumeNotes: state.continuity.resumeNotes,
+    turnState: state.handoffSnapshot?.turnState ?? {
+      currentCognitiveLoad: 'low',
+      lastErrorClassification: null,
+      lastRecommendedAction: null,
+      modeQueueCursor: state.modeContext.queueCursor,
+      recentConfusionSignals: [],
+      responseQuality: 'adequate',
+      unknownTermsQueue: [],
+    },
     unresolvedAtuIds: state.summary.unresolvedAtuIds,
+    voiceState:
+      state.handoffSnapshot?.voiceState ??
+      state.modeContext.voiceState ?? {
+        isHandsFree: false,
+        lastTranscript: null,
+        lastTutorMessageId: null,
+        pendingCommand: null,
+        playbackRate: 1,
+      },
   };
 }
 

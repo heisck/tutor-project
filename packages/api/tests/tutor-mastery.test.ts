@@ -25,6 +25,7 @@ function createSegment(overrides: Partial<LessonSegmentRecord> = {}): LessonSegm
   return {
     analogyPrompt: 'test',
     atuIds: ['atu-1'],
+    checkTypeBias: ['explanation', 'transfer'],
     checkPrompt: 'test',
     chunkIds: ['chunk-1'],
     conceptDescription: 'test',
@@ -36,6 +37,8 @@ function createSegment(overrides: Partial<LessonSegmentRecord> = {}): LessonSegm
     masteryGate: defaultGate,
     ordinal: 0,
     prerequisiteConceptIds: [],
+    reviewPriority: null,
+    selectionReason: 'prerequisite_order',
     sectionId: null,
     sourceOrdinal: 0,
     sourceUnitIds: ['su-1'],
@@ -174,12 +177,16 @@ describe('enforceMasteryTransition', () => {
       status: 'checked',
     };
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'low',
       confusionScore: 0.05,
       confusionSignals: ['no_signal'],
       errorClassification: 'none',
       illusionOfUnderstanding: false,
       isCorrect: true,
       reasoning: 'Good but only one check type used',
+      recommendedAction: 'check',
+      responseQuality: 'adequate',
+      unknownTerms: [],
     };
 
     const result = enforceMasteryTransition(mastery, {
@@ -196,12 +203,16 @@ describe('enforceMasteryTransition', () => {
 
   it('returns coverage status update when mastery changes', () => {
     const evaluation: ResponseEvaluation = {
+      cognitiveLoad: 'low',
       confusionScore: 0.1,
       confusionSignals: ['no_signal'],
       errorClassification: 'none',
       illusionOfUnderstanding: false,
       isCorrect: true,
       reasoning: 'Good',
+      recommendedAction: null,
+      responseQuality: 'strong',
+      unknownTerms: [],
     };
 
     const result = enforceMasteryTransition(null, {

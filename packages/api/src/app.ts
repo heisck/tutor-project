@@ -15,7 +15,10 @@ import {
 import { registerDocumentRoutes } from './documents/routes.js';
 import { registerProfileRoutes } from './profile/routes.js';
 import { registerUploadRoutes } from './upload/routes.js';
-import type { UploadStorageClient } from './upload/storage/r2.js';
+import type {
+  DocumentStorageCleanupClient,
+  UploadStorageClient,
+} from './upload/storage/r2.js';
 import { MAX_UPLOAD_SIZE_BYTES } from './upload/validation.js';
 import {
   closeRedisClient,
@@ -29,6 +32,7 @@ import { registerSecurityHeaders } from './lib/security-headers.js';
 
 export interface BuildAppOptions {
   documentProcessingQueue?: DocumentProcessingQueue;
+  documentStorageClient?: DocumentStorageCleanupClient;
   env?: ApiEnv;
   oauthClient?: GoogleOauthClient;
   prismaClient?: DatabaseClient;
@@ -45,6 +49,9 @@ export async function buildApp(
     options.documentProcessingQueue ?? createDocumentProcessingQueue(env);
   const prismaClient = options.prismaClient ?? getPrismaClient();
   const redisClient = options.redisClient ?? createRedisClient(env);
+  const documentStorageClient =
+    options.documentStorageClient ??
+    resolveDocumentStorageClient(options.uploadStorageClient);
 
   const app = Fastify({
     logger: {
@@ -107,6 +114,9 @@ export async function buildApp(
     env,
     prisma: prismaClient,
     redis: redisClient,
+    ...(documentStorageClient === undefined
+      ? {}
+      : { storageClient: documentStorageClient }),
   });
 
   await registerStudySessionRoutes(app, {
@@ -148,4 +158,18 @@ export async function buildApp(
   });
 
   return app;
+}
+
+function resolveDocumentStorageClient(
+  uploadStorageClient: UploadStorageClient | undefined,
+): DocumentStorageCleanupClient | undefined {
+  if (
+    uploadStorageClient !== undefined &&
+    'deleteObject' in uploadStorageClient &&
+    'getObject' in uploadStorageClient
+  ) {
+    return uploadStorageClient as DocumentStorageCleanupClient;
+  }
+
+  return undefined;
 }

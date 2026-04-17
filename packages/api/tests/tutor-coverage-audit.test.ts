@@ -16,6 +16,7 @@ function createSegment(overrides: Partial<LessonSegmentRecord> = {}): LessonSegm
   return {
     analogyPrompt: 'test',
     atuIds: ['atu-1'],
+    checkTypeBias: ['explanation', 'transfer'],
     checkPrompt: 'test',
     chunkIds: ['chunk-1'],
     conceptDescription: 'test',
@@ -32,6 +33,8 @@ function createSegment(overrides: Partial<LessonSegmentRecord> = {}): LessonSegm
     },
     ordinal: 0,
     prerequisiteConceptIds: [],
+    reviewPriority: null,
+    selectionReason: 'prerequisite_order',
     sectionId: null,
     sourceOrdinal: 0,
     sourceUnitIds: ['su-1'],
@@ -109,11 +112,15 @@ describe('shouldBlockCompletion', () => {
   it('blocks when there are unresolved concepts', () => {
     const result = shouldBlockCompletion({
       canComplete: false,
+      checkedCount: 0,
       masteredCount: 1,
       partialCount: 1,
+      resolvedAtuCount: 1,
       taughtCount: 0,
       totalConcepts: 2,
+      totalAtus: 2,
       unresolvedConceptIds: ['c-2'],
+      unresolvedAtuIds: ['atu-2'],
       weakCount: 0,
     });
 
@@ -124,11 +131,15 @@ describe('shouldBlockCompletion', () => {
   it('allows completion when all mastered', () => {
     const result = shouldBlockCompletion({
       canComplete: true,
+      checkedCount: 0,
       masteredCount: 3,
       partialCount: 0,
+      resolvedAtuCount: 3,
       taughtCount: 0,
       totalConcepts: 3,
+      totalAtus: 3,
       unresolvedConceptIds: [],
+      unresolvedAtuIds: [],
       weakCount: 0,
     });
 

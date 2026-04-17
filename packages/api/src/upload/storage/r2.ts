@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { Readable } from 'node:stream';
 
 import type { ApiEnv } from '../../config/env.js';
@@ -25,6 +30,12 @@ export interface DocumentSourceStorageClient {
     key: string;
     metadata: Record<string, string>;
   }>;
+}
+
+export interface DocumentStorageCleanupClient extends DocumentSourceStorageClient {
+  deleteObject(input: {
+    key: string;
+  }): Promise<void>;
 }
 
 class R2StorageClient implements UploadStorageClient, DocumentSourceStorageClient {
@@ -104,6 +115,17 @@ class R2StorageClient implements UploadStorageClient, DocumentSourceStorageClien
       metadata: response.Metadata ?? {},
     };
   }
+
+  public async deleteObject(input: {
+    key: string;
+  }): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: input.key,
+      }),
+    );
+  }
 }
 
 export function createR2UploadStorageClient(
@@ -126,7 +148,7 @@ export function createR2DocumentSourceStorageClient(
     | 'R2_ENDPOINT'
     | 'R2_SECRET_ACCESS_KEY'
   >,
-): DocumentSourceStorageClient {
+): DocumentStorageCleanupClient {
   return new R2StorageClient(env);
 }
 

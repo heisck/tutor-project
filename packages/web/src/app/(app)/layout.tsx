@@ -6,18 +6,21 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  BookOpen,
   ChevronLeft,
   GraduationCap,
   LayoutDashboard,
   LogOut,
   Menu,
+  Moon,
   Settings,
+  Sun,
   Upload,
+  UserCircle2,
   Zap,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useToast, useTheme } from '@/components';
 
 interface NavItemConfig {
   href: string;
@@ -60,9 +63,12 @@ function SidebarNavItem({
 export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const { showToast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const initRef = useRef(false);
 
   useEffect(() => {
@@ -84,8 +90,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   async function handleLogout() {
-    await api.signOut();
-    router.push('/');
+    try {
+      setLoggingOut(true);
+      await api.signOut();
+      showToast({
+        title: 'Signed out',
+        description: 'Your session ended safely.',
+        variant: 'success',
+      });
+      router.push('/');
+    } catch (error) {
+      showToast({
+        title: 'Could not sign out',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'error',
+      });
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   const sidebarContent = (
@@ -95,21 +117,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         collapsed ? 'w-16' : 'w-56',
       )}
     >
-      {/* Brand */}
-      <div
-        className={cn(
-          'flex items-center border-b border-surface-border shrink-0',
-          collapsed ? 'justify-center h-14 px-2' : 'gap-3 h-14 px-4',
-        )}
-      >
-        <div className="shrink-0 w-8 h-8 rounded-lg bg-amber flex items-center justify-center">
-          <BookOpen size={16} className="text-ink" strokeWidth={2.5} />
-        </div>
-        {!collapsed && (
-          <span className="font-display text-base font-700 text-cream truncate">
-            Studium
-          </span>
-        )}
+      <div className="shrink-0 border-b border-surface-border px-2 py-2">
+        <button
+          onClick={() => setCollapsed((prev) => !prev)}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-cream-muted transition-colors hover:bg-surface-hover hover:text-cream',
+            collapsed && 'justify-center',
+          )}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          type="button"
+        >
+          <ChevronLeft
+            size={16}
+            className={cn('transition-transform', collapsed && 'rotate-180')}
+          />
+          {!collapsed && <span className="label-mono text-xs">Collapse</span>}
+        </button>
       </div>
 
       {/* Nav */}
@@ -130,58 +153,68 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       {/* User + collapse toggle */}
       <div className="shrink-0 border-t border-surface-border">
-        {user !== null && !collapsed && (
-          <div className="px-4 py-3 flex items-center gap-3">
-            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-amber to-amber-600/80 flex items-center justify-center text-ink text-xs font-bold shrink-0">
-              {(user.username ?? user.email).charAt(0).toUpperCase()}
+        <div className="px-2 py-3 space-y-2">
+          <button
+            className={cn(
+              'flex w-full items-center gap-3 rounded-xl border border-surface-border bg-ink/20 px-3 py-3 text-left transition-all hover:border-amber/40 hover:bg-surface-hover',
+              collapsed && 'justify-center px-2',
+            )}
+            onClick={() => router.push('/settings')}
+            title="Open settings"
+            type="button"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber to-amber-600/80 text-ink">
+              <UserCircle2 size={18} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="label-mono text-xs text-cream truncate">
-                {user.username ?? user.email.split('@')[0]}
-              </p>
-              <p className="label-mono text-xs text-cream-muted truncate">
-                {user.email}
-              </p>
-            </div>
+            {!collapsed && user !== null && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-cream">
+                  {user.username ?? user.email.split('@')[0]}
+                </p>
+                <p className="truncate text-xs text-cream-muted">{user.email}</p>
+              </div>
+            )}
+          </button>
+
+          <div className={cn('flex gap-2', collapsed && 'flex-col')}>
+            <button
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-lg border border-surface-border px-3 py-2 text-cream-muted transition-colors hover:bg-surface-hover hover:text-cream',
+                collapsed ? 'w-full' : 'flex-1',
+              )}
+              onClick={toggleTheme}
+              title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+              type="button"
+            >
+              {resolvedTheme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+              {!collapsed && (
+                <span className="label-mono text-xs">
+                  {resolvedTheme === 'dark' ? 'Light' : 'Dark'}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => void handleLogout()}
-              className="shrink-0 p-1 text-cream-muted hover:text-cream transition-colors"
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-lg border border-surface-border px-3 py-2 text-cream-muted transition-colors hover:bg-red-500/10 hover:text-red-300',
+                collapsed ? 'w-full' : 'flex-1',
+              )}
               title="Sign out"
+              type="button"
             >
-              <LogOut size={14} />
+              {loggingOut ? (
+                <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              ) : (
+                <LogOut size={15} />
+              )}
+              {!collapsed && (
+                <span className="label-mono text-xs">
+                  {loggingOut ? 'Signing out...' : 'Sign out'}
+                </span>
+              )}
             </button>
           </div>
-        )}
-
-        <div
-          className={cn(
-            'px-2 pb-3',
-            collapsed && 'flex flex-col items-center gap-1',
-          )}
-        >
-          {collapsed && user !== null && (
-            <button
-              onClick={() => void handleLogout()}
-              className="p-2 text-cream-muted hover:text-cream hover:bg-surface-hover rounded-lg transition-colors"
-              title="Sign out"
-            >
-              <LogOut size={16} />
-            </button>
-          )}
-          <button
-            onClick={() => setCollapsed((prev) => !prev)}
-            className={cn(
-              'flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-cream-muted hover:text-cream hover:bg-surface-hover transition-colors label-mono text-xs',
-              collapsed && 'justify-center',
-            )}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <ChevronLeft
-              size={14}
-              className={cn('transition-transform', collapsed && 'rotate-180')}
-            />
-            {!collapsed && 'Collapse'}
-          </button>
         </div>
       </div>
     </aside>
@@ -212,15 +245,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <button
             onClick={() => setMobileOpen(true)}
             className="p-2 text-cream-muted hover:text-cream hover:bg-surface-hover rounded-lg transition-colors"
+            type="button"
           >
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-amber flex items-center justify-center">
-              <BookOpen size={14} className="text-ink" strokeWidth={2.5} />
-            </div>
-            <span className="font-display text-sm font-700 text-cream">Studium</span>
-          </div>
+          <span className="label-mono text-xs text-cream-muted">Navigation</span>
         </div>
 
         {/* Page content */}
