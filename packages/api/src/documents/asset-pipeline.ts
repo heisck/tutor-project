@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
+
 import type { NormalizedDocumentStructure, NormalizedExtractionWarning } from '@ai-tutor-pwa/shared';
 
+import { mapWithConcurrency } from '../lib/concurrency.js';
 import type { UploadStorageClient } from '../upload/storage/r2.js';
 import { mimeTypeToExtension, type ExtractedDocumentAsset, type DocumentExtractionResult } from './asset-extraction.js';
 import type { NormalizedAssetDraft } from './normalized-structure.js';
@@ -18,21 +21,28 @@ interface AssetProcessingOutcome {
   warning: NormalizedExtractionWarning | null;
 }
 
+const ASSET_PROCESSING_CONCURRENCY = 5;
+
 export async function processExtractionResult(
   extraction: DocumentExtractionResult,
   context: AssetPipelineContext,
 ): Promise<NormalizedDocumentStructure> {
-  const assetDrafts: NormalizedAssetDraft[] = [];
   const warnings = [...extraction.warnings];
 
-  for (let i = 0; i < extraction.assets.length; i++) {
-    const asset = extraction.assets[i]!;
-    const outcome = await processExtractedAsset(asset, i, context);
+  // Per-document vision cache — identical image bytes get one vision call, reused for every occurrence.
+  const descriptionCache = new Map<string, Promise<string | null>>();
 
+  const outcomes = await mapWithConcurrency(
+    extraction.assets,
+    ASSET_PROCESSING_CONCURRENCY,
+    (asset, index) => processExtractedAsset(asset, index, context, descriptionCache),
+  );
+
+  const assetDrafts: NormalizedAssetDraft[] = [];
+  for (const outcome of outcomes) {
     if (outcome.draft !== null) {
       assetDrafts.push(outcome.draft);
     }
-
     if (outcome.warning !== null) {
       warnings.push(outcome.warning);
     }
@@ -49,6 +59,7 @@ async function processExtractedAsset(
   asset: ExtractedDocumentAsset,
   index: number,
   context: AssetPipelineContext,
+  descriptionCache: Map<string, Promise<string | null>>,
 ): Promise<AssetProcessingOutcome> {
   const storageKey = buildAssetStorageKey(context, asset, index);
 
@@ -77,7 +88,7 @@ async function processExtractedAsset(
   let description: string | undefined;
 
   if (context.visionClient !== null) {
-    const result = await context.visionClient.describeAsset(asset);
+    const result = await describeWithCache(asset, context.visionClient, descriptionCache);
     description = result ?? undefined;
   }
 
@@ -98,6 +109,22 @@ async function processExtractedAsset(
     },
     warning: null,
   };
+}
+
+async function describeWithCache(
+  asset: ExtractedDocumentAsset,
+  visionClient: VisionDescriptionClient,
+  cache: Map<string, Promise<string | null>>,
+): Promise<string | null> {
+  const hash = createHash('sha256').update(asset.buffer).digest('hex');
+  const cached = cache.get(hash);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const promise = visionClient.describeAsset(asset);
+  cache.set(hash, promise);
+  return promise;
 }
 
 function buildAssetStorageKey(

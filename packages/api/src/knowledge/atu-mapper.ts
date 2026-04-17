@@ -8,6 +8,9 @@ import {
 import { z } from 'zod';
 
 import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
+import { mapWithConcurrency } from '../lib/concurrency.js';
+
+const ATU_EXTRACTION_CONCURRENCY = 5;
 
 export interface AtuMapperClient {
   extractAtus(input: AtuExtractionInput): Promise<RawAtu[]>;
@@ -161,33 +164,34 @@ export async function generateAtus(
     return { atuCount: 0, sourceUnitsProcessed: 0 };
   }
 
-  const allAtus: Array<{
-    raw: RawAtu;
-    sourceUnitId: string;
-    sourceTrace: Prisma.InputJsonValue;
-  }> = [];
-
-  for (const unit of sourceUnits) {
-    try {
-      const rawAtus = await mapperClient.extractAtus({
-        category: unit.category,
-        content: unit.content,
-        title: unit.title,
-      });
-
-      for (const raw of rawAtus) {
-        allAtus.push({
+  const perUnitResults = await mapWithConcurrency(
+    sourceUnits,
+    ATU_EXTRACTION_CONCURRENCY,
+    async (unit) => {
+      try {
+        const rawAtus = await mapperClient.extractAtus({
+          category: unit.category,
+          content: unit.content,
+          title: unit.title,
+        });
+        return rawAtus.map((raw) => ({
           raw,
           sourceTrace: unit.sourceTrace as Prisma.InputJsonValue,
           sourceUnitId: unit.id,
-        });
+        }));
+      } catch {
+        // Individual source unit extraction failure is non-fatal.
+        // The unit is skipped; coverage will be incomplete but diagnosable.
+        return [] as Array<{
+          raw: RawAtu;
+          sourceUnitId: string;
+          sourceTrace: Prisma.InputJsonValue;
+        }>;
       }
-    } catch {
-      // Individual source unit extraction failure is non-fatal
-      // The unit is skipped; coverage will be incomplete but diagnosable
-      continue;
-    }
-  }
+    },
+  );
+
+  const allAtus = perUnitResults.flat();
 
   if (allAtus.length === 0) {
     return { atuCount: 0, sourceUnitsProcessed: sourceUnits.length };
