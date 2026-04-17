@@ -105,9 +105,19 @@ export function createConceptAnalyzerClient(apiKey: string): ConceptAnalyzerClie
   };
 }
 
+const ATU_CONTENT_PROMPT_LIMIT = 300;
+
+function truncateForPrompt(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit).trimEnd()}…`;
+}
+
 function buildConceptAnalysisPrompt(input: ConceptAnalysisInput): string {
   const atuList = input.atus
-    .map((atu) => `- [${atu.id}] ${atu.title} (${atu.category}): ${atu.content}`)
+    .map((atu) => {
+      const content = truncateForPrompt(atu.content, ATU_CONTENT_PROMPT_LIMIT);
+      return `- [${atu.id}] ${atu.title} (${atu.category}): ${content}`;
+    })
     .join('\n');
 
   return `Analyze the following Atomic Teachable Units and group them into concepts. For each concept, identify common misconceptions that students may have. Also identify prerequisite relationships between concepts.

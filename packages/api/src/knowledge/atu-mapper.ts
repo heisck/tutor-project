@@ -10,13 +10,15 @@ import { z } from 'zod';
 import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
 import { mapWithConcurrency } from '../lib/concurrency.js';
 
-const ATU_EXTRACTION_CONCURRENCY = 5;
+const ATU_BATCH_SIZE = 4;
+const ATU_BATCH_CONCURRENCY = 2;
 
 export interface AtuMapperClient {
-  extractAtus(input: AtuExtractionInput): Promise<RawAtu[]>;
+  extractAtusBatch(units: readonly AtuExtractionInput[]): Promise<Map<string, RawAtu[]>>;
 }
 
 export interface AtuExtractionInput {
+  unitId: string;
   content: string;
   category: string;
   title: string | null;
@@ -40,22 +42,31 @@ const rawAtuSchema = z.object({
   title: z.string().min(1),
 });
 
-const atuExtractionResponseSchema = z.object({
+const unitAtusSchema = z.object({
+  unitId: z.string().min(1),
   atus: z.array(rawAtuSchema),
+});
+
+const batchResponseSchema = z.object({
+  units: z.array(unitAtusSchema),
 });
 
 export function createAtuMapperClient(apiKey: string): AtuMapperClient {
   const client = new Anthropic({ apiKey });
 
   return {
-    async extractAtus(input: AtuExtractionInput): Promise<RawAtu[]> {
+    async extractAtusBatch(units): Promise<Map<string, RawAtu[]>> {
+      if (units.length === 0) {
+        return new Map();
+      }
+
       const result = await executeAiCall('atuExtraction', async (signal) => {
         const response = await client.messages.create(
           {
             max_tokens: AI_CALL_CONFIGS.atuExtraction.maxTokens,
             messages: [
               {
-                content: buildExtractionPrompt(input),
+                content: buildBatchExtractionPrompt(units),
                 role: 'user',
               },
             ],
@@ -76,63 +87,84 @@ export function createAtuMapperClient(apiKey: string): AtuMapperClient {
       });
 
       if (!result.ok) {
-        return [];
+        return new Map();
       }
 
       const textBlock = result.data.content.find((b) => b.type === 'text');
       if (textBlock === undefined || textBlock.type !== 'text') {
-        return [];
+        return new Map();
       }
 
-      return parseAtuResponse(textBlock.text);
+      return parseBatchResponse(textBlock.text);
     },
   };
 }
 
-function buildExtractionPrompt(input: AtuExtractionInput): string {
-  const titleLine = input.title !== null ? `Title: ${input.title}\n` : '';
-  return `Extract atomic teachable units from the following source content.
+function buildBatchExtractionPrompt(units: readonly AtuExtractionInput[]): string {
+  const unitBlocks = units
+    .map((u) => {
+      const titleLine = u.title !== null ? `Title: ${u.title}\n` : '';
+      return `<unit id="${u.unitId}">
+Category: ${u.category}
+${titleLine}Content:
+${u.content}
+</unit>`;
+    })
+    .join('\n\n');
 
-Source category: ${input.category}
-${titleLine}
-<source_content>
-${input.content}
-</source_content>
+  return `Extract atomic teachable units (ATUs) from each source unit below. Each unit is tagged with a stable id — every ATU you return must reference the id of the unit it came from.
 
-Respond with a JSON object containing an "atus" array. Each ATU must have:
-- title: concise title for the teaching point
-- content: the specific knowledge to be taught
-- category: one of "concept", "fact", "procedure", "principle", "definition"
-- difficulty: one of "introductory", "intermediate", "advanced"
-- examRelevance: boolean — true if likely to appear on an exam
-- isImplied: boolean — true if the knowledge is implied rather than explicitly stated
+${unitBlocks}
 
+Respond with JSON in this exact shape:
+{
+  "units": [
+    {
+      "unitId": "<the id attribute from the unit tag>",
+      "atus": [
+        {
+          "title": "concise teaching point",
+          "content": "specific knowledge to teach",
+          "category": "concept" | "fact" | "procedure" | "principle" | "definition",
+          "difficulty": "introductory" | "intermediate" | "advanced",
+          "examRelevance": boolean,
+          "isImplied": boolean
+        }
+      ]
+    }
+  ]
+}
+
+Include every input unitId once. If a unit contains no teachable content, return an empty atus array for it.
 Return ONLY valid JSON with no markdown formatting.`;
 }
 
-function parseAtuResponse(text: string): RawAtu[] {
-  // Strip markdown code fences if present
+function parseBatchResponse(text: string): Map<string, RawAtu[]> {
   const cleaned = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    return [];
+    return new Map();
   }
 
-  const result = atuExtractionResponseSchema.safeParse(parsed);
+  const result = batchResponseSchema.safeParse(parsed);
   if (!result.success) {
-    return [];
+    return new Map();
   }
 
-  return result.data.atus;
+  const map = new Map<string, RawAtu[]>();
+  for (const unit of result.data.units) {
+    map.set(unit.unitId, unit.atus);
+  }
+  return map;
 }
 
 const ATU_SYSTEM_PROMPT = `You are a curriculum analysis assistant. Extract atomic teachable units (ATUs) from educational content.
 
 Each ATU is the smallest independently teachable piece of knowledge. Follow these rules:
-- Every ATU must be traceable to the source content provided.
+- Every ATU must be traceable to the source unit it came from.
 - Categorize accurately: concepts explain ideas, facts state truths, procedures describe steps, principles describe rules, definitions provide meanings.
 - Rate difficulty based on typical undergraduate-level expectations.
 - Mark examRelevance as true for content that would commonly be tested.
@@ -150,6 +182,14 @@ export interface AtuPipelineResult {
   sourceUnitsProcessed: number;
 }
 
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export async function generateAtus(
   prisma: DatabaseClient,
   mapperClient: AtuMapperClient,
@@ -164,41 +204,55 @@ export async function generateAtus(
     return { atuCount: 0, sourceUnitsProcessed: 0 };
   }
 
-  const perUnitResults = await mapWithConcurrency(
-    sourceUnits,
-    ATU_EXTRACTION_CONCURRENCY,
-    async (unit) => {
+  const unitById = new Map(sourceUnits.map((u) => [u.id, u]));
+  const batches = chunk(sourceUnits, ATU_BATCH_SIZE);
+
+  const batchResults = await mapWithConcurrency(
+    batches,
+    ATU_BATCH_CONCURRENCY,
+    async (batch) => {
       try {
-        const rawAtus = await mapperClient.extractAtus({
-          category: unit.category,
-          content: unit.content,
-          title: unit.title,
-        });
-        return rawAtus.map((raw) => ({
-          raw,
-          sourceTrace: unit.sourceTrace as Prisma.InputJsonValue,
-          sourceUnitId: unit.id,
-        }));
+        return await mapperClient.extractAtusBatch(
+          batch.map((unit) => ({
+            category: unit.category,
+            content: unit.content,
+            title: unit.title,
+            unitId: unit.id,
+          })),
+        );
       } catch {
-        // Individual source unit extraction failure is non-fatal.
-        // The unit is skipped; coverage will be incomplete but diagnosable.
-        return [] as Array<{
-          raw: RawAtu;
-          sourceUnitId: string;
-          sourceTrace: Prisma.InputJsonValue;
-        }>;
+        return new Map<string, RawAtu[]>();
       }
     },
   );
 
-  const allAtus = perUnitResults.flat();
+  const allAtus: Array<{
+    raw: RawAtu;
+    sourceUnitId: string;
+    sourceTrace: Prisma.InputJsonValue;
+  }> = [];
+
+  for (const batchMap of batchResults) {
+    for (const [unitId, rawAtus] of batchMap) {
+      const unit = unitById.get(unitId);
+      if (unit === undefined) {
+        continue;
+      }
+      for (const raw of rawAtus) {
+        allAtus.push({
+          raw,
+          sourceTrace: unit.sourceTrace as Prisma.InputJsonValue,
+          sourceUnitId: unit.id,
+        });
+      }
+    }
+  }
 
   if (allAtus.length === 0) {
     return { atuCount: 0, sourceUnitsProcessed: sourceUnits.length };
   }
 
   await prisma.$transaction(async (tx) => {
-    // Clean up existing ATUs (retry safety)
     await tx.atomicTeachableUnit.deleteMany({
       where: { documentId: input.documentId, userId: input.userId },
     });

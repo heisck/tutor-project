@@ -16,9 +16,9 @@ export const AI_CALL_CONFIGS = {
   },
   conceptAnalysis: {
     label: 'concept-analysis',
-    maxTokens: 4096,
+    maxTokens: 8192,
     model: 'claude-haiku-4-5-20251001',
-    timeoutMs: 90_000,
+    timeoutMs: 120_000,
   },
   embedding: {
     label: 'embedding',
@@ -73,7 +73,7 @@ export interface AiCallUsage {
 
 export interface AiCallSuccess<T> {
   ok: true;
-  attempt: 1 | 2;
+  attempt: 1 | 2 | 3 | 4;
   data: T;
   finishReason: string | null;
   latencyMs: number;
@@ -89,7 +89,7 @@ export type AiCallFailureReason =
 
 export interface AiCallFailure {
   ok: false;
-  attempt: 1 | 2;
+  attempt: 1 | 2 | 3 | 4;
   reason: AiCallFailureReason;
   message: string;
   retryAfterMs: number | null;
@@ -289,6 +289,12 @@ function logAiCall<T>(
   }
 }
 
+const MAX_RATE_LIMIT_WAIT_MS = 10_000;
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function executeAiCall<T>(
   callType: AiCallType,
   callFn: (signal: AbortSignal) => Promise<AiCallFnResult<T>>,
@@ -296,10 +302,11 @@ export async function executeAiCall<T>(
   const config = AI_CALL_CONFIGS[callType];
   const start = performance.now();
 
-  const MAX_ATTEMPTS = 2 as const;
+  const MAX_ATTEMPTS = 4 as const;
+  let lastRateLimitRetryAfter: number | null = null;
 
   for (let attemptIdx = 0; attemptIdx < MAX_ATTEMPTS; attemptIdx++) {
-    const attempt = (attemptIdx + 1) as 1 | 2;
+    const attempt = (attemptIdx + 1) as 1 | 2 | 3 | 4;
     const { abortPromise, cleanup, signal } =
       createTimedAbortSignal(config.timeoutMs);
 
@@ -340,9 +347,22 @@ export async function executeAiCall<T>(
       const latencyMs = Math.round(performance.now() - start);
       const isAbort = isAbortError(error);
       const isTransient = !isAbort && isTransientError(error);
+      const isRateLimited = isRateLimitError(error);
+      const canRetry = attempt < MAX_ATTEMPTS;
 
-      // Retry only transient errors on first attempt
-      if (isTransient && attempt < MAX_ATTEMPTS) {
+      if (isRateLimited && canRetry) {
+        // Respect server-sent retry-after. Cap so we don't block forever.
+        const serverRetryMs = extractRetryAfterMs(error);
+        lastRateLimitRetryAfter = serverRetryMs;
+        const waitMs = Math.min(
+          serverRetryMs ?? 1000 * 2 ** attemptIdx,
+          MAX_RATE_LIMIT_WAIT_MS,
+        );
+        await sleep(waitMs + Math.floor(Math.random() * 200));
+        continue;
+      }
+
+      if (isTransient && canRetry) {
         await jitteredDelay();
         continue;
       }
@@ -350,9 +370,9 @@ export async function executeAiCall<T>(
       const reason = classifyError(error);
       const message =
         error instanceof Error ? error.message : String(error);
-      const retryAfterMs = isRateLimitError(error)
+      const retryAfterMs = isRateLimited
         ? extractRetryAfterMs(error)
-        : null;
+        : lastRateLimitRetryAfter;
 
       const failure: AiCallFailure = {
         ok: false,
@@ -369,14 +389,13 @@ export async function executeAiCall<T>(
     }
   }
 
-  // Loop exhausted (both attempts hit transient errors)
   const latencyMs = Math.round(performance.now() - start);
   const exhausted: AiCallFailure = {
     ok: false,
     attempt: MAX_ATTEMPTS,
     reason: 'transient_failure',
-    message: 'All retry attempts exhausted due to transient failures',
-    retryAfterMs: null,
+    message: 'All retry attempts exhausted',
+    retryAfterMs: lastRateLimitRetryAfter,
     latencyMs,
   };
   logAiCall(config, exhausted, MAX_ATTEMPTS);

@@ -139,19 +139,22 @@ describe('AI client guardrails', () => {
     expect(result).toEqual({ concepts: [], prerequisites: [] });
   });
 
-  it('ATU mapper returns an empty array when the provider path fails', async () => {
+  it('ATU mapper returns an empty map when the provider path fails', async () => {
     sdkMocks.anthropicMessagesCreate.mockRejectedValueOnce(
       Object.assign(new Error('Bad Request'), { status: 400 }),
     );
 
     const client = createAtuMapperClient('anthropic-key');
-    const result = await client.extractAtus({
-      category: 'text',
-      content: 'A textbook excerpt about photosynthesis.',
-      title: 'Photosynthesis',
-    });
+    const result = await client.extractAtusBatch([
+      {
+        category: 'text',
+        content: 'A textbook excerpt about photosynthesis.',
+        title: 'Photosynthesis',
+        unitId: 'unit-1',
+      },
+    ]);
 
-    expect(result).toEqual([]);
+    expect(result.size).toBe(0);
   });
 
   it('embedding client uses centralized config, forwards AbortSignal, and sorts embeddings by index', async () => {

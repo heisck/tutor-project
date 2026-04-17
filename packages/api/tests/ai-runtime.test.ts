@@ -76,7 +76,7 @@ describe('executeAiCall', () => {
     expect(result.attempt).toBe(2);
   });
 
-  it('transient retry exhaustion — both calls throw 503; reason=transient_failure, attempt=2', async () => {
+  it('transient retry exhaustion — every attempt throws 503; reason=transient_failure, attempt=4', async () => {
     const callFn = vi
       .fn()
       .mockRejectedValue(makeHttpError(503, 'Service Unavailable'));
@@ -88,7 +88,7 @@ describe('executeAiCall', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe('transient_failure');
-    expect(result.attempt).toBe(2);
+    expect(result.attempt).toBe(4);
   });
 
   it('timeout enforcement — a never-resolving call returns a timeout failure within the configured budget', async () => {
@@ -110,24 +110,30 @@ describe('executeAiCall', () => {
     );
   });
 
-  it('rate limit surfacing — 429 with retry-after header; reason=rate_limited, retryAfterMs extracted, attempt=1', async () => {
+  it('rate limit surfacing — 429 retries with retry-after backoff, eventually fails with rate_limited reason', async () => {
     const callFn = vi.fn().mockRejectedValue(make429Error(30));
 
-    const result = await executeAiCall('conceptAnalysis', callFn);
+    vi.useFakeTimers();
+    const promise = executeAiCall('conceptAnalysis', callFn);
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe('rate_limited');
-    expect(result.attempt).toBe(1);
+    expect(result.attempt).toBe(4);
     expect(result.retryAfterMs).toBe(30_000);
-    // Only called once — no retry on rate limit
-    expect(callFn).toHaveBeenCalledTimes(1);
+    // All 4 attempts exhausted
+    expect(callFn).toHaveBeenCalledTimes(4);
   });
 
   it('rate limit without header — retryAfterMs is null', async () => {
     const callFn = vi.fn().mockRejectedValue(make429Error());
 
-    const result = await executeAiCall('conceptAnalysis', callFn);
+    vi.useFakeTimers();
+    const promise = executeAiCall('conceptAnalysis', callFn);
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.ok).toBe(false);
     if (result.ok) return;

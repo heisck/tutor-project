@@ -21,7 +21,7 @@ interface AssetProcessingOutcome {
   warning: NormalizedExtractionWarning | null;
 }
 
-const ASSET_PROCESSING_CONCURRENCY = 5;
+const ASSET_PROCESSING_CONCURRENCY = 2;
 
 export async function processExtractionResult(
   extraction: DocumentExtractionResult,

@@ -25,9 +25,12 @@ const testPrefix = `atu-map-${randomUUID()}`;
 
 function createMockMapperClient(responses: Map<string, RawAtu[]>): AtuMapperClient {
   return {
-    extractAtus: vi.fn().mockImplementation((input) => {
-      const key = input.content;
-      return Promise.resolve(responses.get(key) ?? []);
+    extractAtusBatch: vi.fn().mockImplementation((units) => {
+      const result = new Map<string, RawAtu[]>();
+      for (const unit of units) {
+        result.set(unit.unitId, responses.get(unit.content) ?? []);
+      }
+      return Promise.resolve(result);
     }),
   };
 }
@@ -133,18 +136,8 @@ describe('ATU mapping pipeline', () => {
     ]);
 
     const failingMapper: AtuMapperClient = {
-      extractAtus: vi.fn().mockImplementation((input) => {
-        if (input.content === 'Content that causes LLM failure.') {
-          return Promise.reject(new Error('API error'));
-        }
-        return Promise.resolve([{
-          category: 'fact',
-          content: 'Biology is the study of life.',
-          difficulty: 'introductory',
-          examRelevance: false,
-          isImplied: false,
-          title: 'Biology Definition',
-        }]);
+      extractAtusBatch: vi.fn().mockImplementation(() => {
+        return Promise.reject(new Error('API error'));
       }),
     };
 
@@ -153,9 +146,9 @@ describe('ATU mapping pipeline', () => {
       userId: user.id,
     });
 
-    // One source unit failed, one succeeded
+    // Batch failed but pipeline completes cleanly with zero ATUs.
     expect(result.sourceUnitsProcessed).toBe(2);
-    expect(result.atuCount).toBe(1);
+    expect(result.atuCount).toBe(0);
   });
 
   it('returns zero for documents with no source units', async () => {
