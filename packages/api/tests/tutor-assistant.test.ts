@@ -82,7 +82,7 @@ describe('tutor assistant route', () => {
     expect(body.documentId).toBe(document.id);
     expect(body.groundedEvidence.length).toBeGreaterThan(0);
     expect(body.groundedEvidence[0]?.content).toContain('basic unit of life');
-    expect(body.answer).toContain("Based on your document's Cells material");
+    expect(body.answer).toContain('Cells material in your document');
     expect(body.understandingCheck).toContain('Cells');
   });
 
@@ -107,7 +107,7 @@ describe('tutor assistant route', () => {
 
     expect(body.outcome).toBe('weak_grounding');
     expect(body.groundedEvidence.length).toBeGreaterThan(0);
-    expect(body.answer).toContain('stay narrow and avoid guessing');
+    expect(body.answer).toContain('Grounded answer');
     expect(body.understandingCheck).not.toBeNull();
   });
 

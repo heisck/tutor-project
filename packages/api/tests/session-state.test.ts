@@ -213,7 +213,7 @@ describe('session state route', () => {
     expect(evaluatedState.handoffSnapshot?.masterySnapshot).toEqual([
       {
         conceptId: currentSegment.conceptId,
-        confusionScore: 0.1,
+        confusionScore: 0,
         evidenceCount: 1,
         status: 'checked',
       },

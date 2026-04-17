@@ -28,6 +28,7 @@ import {
   type ModeExecutionReviewState,
 } from './mode-execution.js';
 import { validateKnowledgeGraphIntegrity } from '../knowledge/coverage-ledger.js';
+import { validateTraceability } from '../knowledge/traceability.js';
 
 export class StudySessionPlanningError extends Error {
   public readonly violations: readonly string[];
@@ -262,6 +263,25 @@ export async function persistTeachingPlanForSession(
     });
 
     persistedSegments.push(toLessonSegmentRecord(createdSegment));
+  }
+
+  // Hard traceability gate: validate the full chain after planning
+  const traceabilityReport = await validateTraceability(prisma, {
+    documentId: input.documentId,
+    sessionId: input.sessionId,
+    userId: input.userId,
+  });
+
+  if (traceabilityReport.lessonReadiness === 'NOT_LESSON_READY') {
+    const brokenSummary = traceabilityReport.brokenChains
+      .slice(0, 5)
+      .map((chain) => `${chain.atuTitle}: ${chain.reasons.join(', ')}`)
+      .join('; ');
+
+    throw new StudySessionPlanningError([
+      `Document is NOT_LESSON_READY: ${traceabilityReport.brokenChains.length} ATU(s) have broken traceability chains`,
+      brokenSummary,
+    ]);
   }
 
   return teachingPlanSchema.parse({

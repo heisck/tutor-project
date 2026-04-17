@@ -11,4 +11,5 @@ export * from './sessions.js';
 export * from './tutor.js';
 export * from './tutor-runtime.js';
 export * from './tutoring-content.js';
+export * from './ui-contract.js';
 export * from './upload.js';

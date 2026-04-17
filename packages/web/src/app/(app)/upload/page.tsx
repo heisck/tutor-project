@@ -175,6 +175,13 @@ export default function UploadPage() {
   const [replacingDocumentId, setReplacingDocumentId] = useState<string | null>(null);
   const [retryingQueueId, setRetryingQueueId] = useState<string | null>(null);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
+  const hasPreparingDocuments = documents.some((document) => isDocumentPreparing(document.processingStatus));
+  const hasActiveQueueItems = queue.some(
+    (item) =>
+      item.status === 'preparing' ||
+      item.status === 'uploading' ||
+      item.status === 'processing',
+  );
 
   const pageSummary = useMemo(() => {
     const readyDocument = documents.find((document) => document.processingStatus === 'complete');
@@ -392,22 +399,23 @@ export default function UploadPage() {
   }
 
   useEffect(() => {
-    const hasPreparingDocuments = documents.some((document) => isDocumentPreparing(document.processingStatus));
-    const hasPreparingQueueItems = queue.some((item) => item.status === 'preparing' || item.status === 'uploading' || item.status === 'processing');
-    if (!hasPreparingDocuments && !hasPreparingQueueItems) return;
-    const intervalId = window.setInterval(() => void refreshDocuments(true), 4500);
+    if (!hasPreparingDocuments && !hasActiveQueueItems) return;
+
+    const intervalId = window.setInterval(() => {
+      if (globalThis.document.visibilityState !== 'visible') return;
+      void refreshDocuments(true);
+    }, 8000);
+
     return () => window.clearInterval(intervalId);
-  }, [documents, queue]);
+  }, [hasPreparingDocuments, hasActiveQueueItems]);
 
   useEffect(() => {
-    const hasPreparingDocuments = documents.some((document) => isDocumentPreparing(document.processingStatus));
-    const hasPreparingQueueItems = queue.some((item) => item.status === 'preparing' || item.status === 'uploading' || item.status === 'processing');
-    if (!hasPreparingDocuments && !hasPreparingQueueItems) return;
+    if (!hasPreparingDocuments && !hasActiveQueueItems) return;
     const intervalId = window.setInterval(() => {
       setPreparationMessageIndex((currentIndex) => (currentIndex + 1) % preparationMessages.length);
     }, 3200);
     return () => window.clearInterval(intervalId);
-  }, [documents, queue]);
+  }, [hasPreparingDocuments, hasActiveQueueItems]);
 
   if (initializing) {
     return (

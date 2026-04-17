@@ -14,7 +14,10 @@ import {
   mapMasteryQuestionTypeToCheckType,
   selectNextTutorCheckType,
 } from './check-types.js';
+import { validateActionForError } from './error-action-map.js';
 import { validateMasteryGate } from './mastery.js';
+import { validateActionForMode } from './mode-enforcement.js';
+import { hasCheckFollowup, validateTutorStep } from './step-validator.js';
 
 export class TutorOrchestrationError extends Error {
   public constructor(message: string) {
@@ -63,7 +66,8 @@ export function orchestrateTutorNextStep(
     );
   }
 
-  const decision = decideTutorAction(currentSegment, mastery, sessionState);
+  const rawDecision = decideTutorAction(currentSegment, mastery, sessionState);
+  const decision = enforceRuntimeContract(rawDecision, mastery, sessionState);
   const promptContext: TutorPromptContext = {
     action: decision.action,
     calibration: {
@@ -305,6 +309,79 @@ function toGroundedChunks(
       id: chunk.id,
       score: chunk.score,
     }));
+}
+
+/**
+ * Enforce the tutor runtime contract on a decision:
+ * 1. Error-to-action discipline: error classification drives next action
+ * 2. Step validation: micro-teach loop contract
+ *
+ * If the decision violates the contract, it is corrected.
+ */
+function enforceRuntimeContract(
+  decision: TutorStepDecision,
+  mastery: ConceptMasteryRecord | null,
+  sessionState: StudySessionStateResponse,
+): TutorStepDecision {
+  const turnState = sessionState.handoffSnapshot?.turnState ?? null;
+  const lastError = turnState?.lastErrorClassification ?? null;
+
+  // Mode enforcement: ensure action is appropriate for the active mode
+  const modeCorrection = validateActionForMode(
+    decision.action,
+    sessionState.session.mode,
+    mastery?.status ?? 'not_taught',
+  );
+  if (modeCorrection !== null) {
+    return {
+      ...decision,
+      action: modeCorrection.correctedAction,
+      reasoning: `${decision.reasoning} [Mode enforcement: ${modeCorrection.reason}]`,
+    };
+  }
+
+  // Error-to-action enforcement: if there's a recent error classification,
+  // the next action must be consistent with it
+  if (lastError !== null && lastError !== 'none') {
+    const correction = validateActionForError(decision.action, lastError);
+    if (correction !== null) {
+      return {
+        ...decision,
+        action: correction.correctedAction,
+        reasoning: `${decision.reasoning} [Corrected: ${correction.reason}]`,
+      };
+    }
+  }
+
+  // Step validation: ensure micro-teach loop contract
+  const stepValidation = validateTutorStep({
+    action: decision.action,
+    hasCheckFollowup: hasCheckFollowup(decision),
+    hasPriorCheckEvidence: (mastery?.evidenceHistory.length ?? 0) > 0,
+    masteryStatus: mastery?.status ?? 'not_taught',
+  });
+
+  if (!stepValidation.isValid) {
+    // If progression was attempted without check, force a check instead
+    if (
+      (decision.action === 'advance' || decision.action === 'complete_session') &&
+      (mastery?.evidenceHistory.length ?? 0) === 0
+    ) {
+      const segment = sessionState.teachingPlan.segments.find(
+        (s) => s.id === decision.segmentId,
+      );
+      return {
+        ...decision,
+        action: 'check',
+        nextCheckType: segment
+          ? selectNextTutorCheckType(mastery ?? { conceptId: decision.conceptId, confusionScore: 0, evidenceHistory: [], explanationTypes: [], status: 'taught' }, segment)
+          : 'paraphrase',
+        reasoning: `${decision.reasoning} [Contract violation: ${stepValidation.violations.join('; ')}]`,
+      };
+    }
+  }
+
+  return decision;
 }
 
 function toTutorModeContext(

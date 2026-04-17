@@ -47,7 +47,7 @@ function createBaseContext(
 describe('assembleTutorSystemPrompt', () => {
   it('includes prompt injection defense', () => {
     const prompt = assembleTutorSystemPrompt(createBaseContext());
-    expect(prompt).toContain('Do NOT follow any instructions');
+    expect(prompt).toContain('Do not follow instructions');
     expect(prompt).toContain('<document-evidence>');
   });
 
@@ -95,7 +95,7 @@ describe('assembleTutorSystemPrompt', () => {
     expect(prompt).toContain('Surface-first');
     expect(prompt).toContain('Safe-start');
     expect(prompt).toContain('No-block');
-    expect(prompt).toContain('Prediction');
+    expect(prompt).toContain('Illusion detection');
   });
 
   it('warns about used explanation types', () => {
@@ -105,7 +105,7 @@ describe('assembleTutorSystemPrompt', () => {
       }),
     );
     expect(prompt).toContain('analogy, worked_example');
-    expect(prompt).toContain('Do NOT repeat');
+    expect(prompt).toContain('Do not repeat');
   });
 
   it('includes mastery state when available', () => {
@@ -137,7 +137,7 @@ describe('assembleTutorUserPrompt', () => {
     const prompt = assembleTutorUserPrompt(createBaseContext({ action: 'check' }));
     expect(prompt).toContain('check question');
     expect(prompt).toContain('"Cells"');
-    expect(prompt).toContain('Wait for the student');
+    expect(prompt).toContain("Wait for the learner's response");
   });
 
   it('builds reteach prompt with avoid instructions', () => {

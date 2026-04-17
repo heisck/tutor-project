@@ -34,7 +34,11 @@
       "Bash(dotenv -e .env.test -- npm --workspace @ai-tutor-pwa/api run test)",
       "Bash(docker compose *)",
       "Bash(npm --workspace @ai-tutor-pwa/shared run build)",
-      "Bash(npm --workspace @ai-tutor-pwa/api run test)"
+      "Bash(npm --workspace @ai-tutor-pwa/api run test)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Read(//tmp/**)",
+      "Bash(git apply *)"
     ]
   }
 }

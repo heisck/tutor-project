@@ -118,7 +118,7 @@ describe('tutor stream route', () => {
     const messageEvent = events[2]!;
     expect(messageEvent.type).toBe('message');
     if (messageEvent.type === 'message') {
-      expect(messageEvent.data.content).toContain("Let's begin with");
+      expect(messageEvent.data.content).toContain("Let's work through");
     }
     expect(events[3]).toMatchObject({
       data: {

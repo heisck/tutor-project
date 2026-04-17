@@ -295,13 +295,9 @@ export async function registerTutorRoutes(
       );
       const currentMastery = masteryRecords.get(segment.conceptId) ?? null;
       const effectiveMastery =
-        currentMastery === null &&
-        (sessionState.session.mode === 'quiz' ||
-          sessionState.session.mode === 'exam' ||
-          sessionState.session.mode === 'revision' ||
-          sessionState.session.mode === 'difficult_parts')
+        currentMastery === null || currentMastery.status === 'not_taught'
           ? recordExplanationAttempt(
-              createInitialMastery(segment.conceptId),
+              currentMastery ?? createInitialMastery(segment.conceptId),
               segment.conceptId,
               mapExplanationStrategyToSessionType(segment.explanationStrategy),
             )

@@ -22,7 +22,7 @@ export class KnowledgeGraphIntegrityError extends Error {
 
 type KnowledgeGraphIntegrityClient = Pick<
   DatabaseClient,
-  'concept' | 'conceptPrerequisite'
+  'atomicTeachableUnit' | 'concept' | 'conceptPrerequisite' | 'sourceUnit'
 >;
 
 /**
@@ -35,7 +35,6 @@ export async function validateKnowledgeGraphIntegrity(
 ): Promise<void> {
   const violations: string[] = [];
 
-  // Check: All concepts must have at least one ATU
   const concepts = await prisma.concept.findMany({
     include: { _count: { select: { atus: true } } },
     where: { documentId: input.documentId },
@@ -46,7 +45,22 @@ export async function validateKnowledgeGraphIntegrity(
     violations.push(`${emptyConcepts.length} concept(s) with no ATUs`);
   }
 
-  // Check: All prerequisite edges point to existing concepts
+  const orphanedAtuCount = await prisma.atomicTeachableUnit.count({
+    where: { conceptId: null, documentId: input.documentId },
+  });
+  if (orphanedAtuCount > 0) {
+    violations.push(`${orphanedAtuCount} ATU(s) not assigned to any concept`);
+  }
+
+  const sourceUnits = await prisma.sourceUnit.findMany({
+    include: { _count: { select: { atus: true } } },
+    where: { documentId: input.documentId },
+  });
+  const uncoveredSourceUnits = sourceUnits.filter((su) => su._count.atus === 0);
+  if (uncoveredSourceUnits.length > 0) {
+    violations.push(`${uncoveredSourceUnits.length} source unit(s) with no ATUs`);
+  }
+
   const prereqs = await prisma.conceptPrerequisite.findMany({
     where: { documentId: input.documentId },
   });
@@ -82,6 +96,8 @@ export async function initializeCoverageLedger(
   if (atus.length === 0) {
     return { atuCount: 0, ledgerEntries: 0 };
   }
+
+  await validateKnowledgeGraphIntegrity(prisma, input);
 
   await prisma.$transaction(async (tx) => {
     // Clean up existing ledger (retry safety)

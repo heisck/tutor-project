@@ -66,7 +66,7 @@ describe('validateMasteryGate', () => {
 
     const result = validateMasteryGate(mastery, defaultGate);
     expect(result.passed).toBe(false);
-    expect(result.reason).toContain('Need 2 checks, have 1');
+    expect(result.reason).toContain('Need 2 correct checks, have 1');
   });
 
   it('fails when required question types are missing', () => {
@@ -154,6 +154,130 @@ describe('validateMasteryGate', () => {
     };
 
     const result = validateMasteryGate(mastery, defaultGate);
+    expect(result.passed).toBe(true);
+  });
+
+  it('blocks mastery when illusion of understanding is detected', () => {
+    const mastery: ConceptMasteryRecord = {
+      ...createInitialMastery('c-1'),
+      confusionScore: 0.2,
+      evidenceHistory: [
+        {
+          checkType: 'paraphrase',
+          conceptId: 'c-1',
+          confusionScore: 0.1,
+          evaluatedAt: '2026-04-14T00:00:00.000Z',
+          isCorrect: true,
+          questionType: 'paraphrase',
+        },
+        {
+          checkType: 'transfer_to_new_domain',
+          conceptId: 'c-1',
+          confusionScore: 0.5,
+          evaluatedAt: '2026-04-14T00:01:00.000Z',
+          isCorrect: true,
+          questionType: 'transfer_to_new_domain',
+        },
+      ],
+      status: 'checked',
+    };
+
+    const result = validateMasteryGate(mastery, defaultGate);
+    expect(result.passed).toBe(false);
+    expect(result.illusionBlocked).toBe(true);
+    expect(result.reason).toContain('Illusion of understanding');
+  });
+
+  it('requires correct evidence count, not just total evidence', () => {
+    const mastery: ConceptMasteryRecord = {
+      ...createInitialMastery('c-1'),
+      confusionScore: 0.2,
+      evidenceHistory: [
+        {
+          checkType: 'paraphrase',
+          conceptId: 'c-1',
+          confusionScore: 0.2,
+          evaluatedAt: '2026-04-14T00:00:00.000Z',
+          isCorrect: true,
+          questionType: 'paraphrase',
+        },
+        {
+          checkType: 'transfer_to_new_domain',
+          conceptId: 'c-1',
+          confusionScore: 0.3,
+          evaluatedAt: '2026-04-14T00:01:00.000Z',
+          isCorrect: false,
+          questionType: 'transfer_to_new_domain',
+        },
+      ],
+      status: 'checked',
+    };
+
+    const result = validateMasteryGate(mastery, defaultGate);
+    expect(result.passed).toBe(false);
+    expect(result.reason).toContain('correct checks');
+  });
+
+  it('blocks mastery when linked ATUs are unresolved', () => {
+    const mastery: ConceptMasteryRecord = {
+      ...createInitialMastery('c-1'),
+      confusionScore: 0.1,
+      evidenceHistory: [
+        {
+          checkType: 'paraphrase',
+          conceptId: 'c-1',
+          confusionScore: 0.1,
+          evaluatedAt: '2026-04-14T00:00:00.000Z',
+          isCorrect: true,
+          questionType: 'paraphrase',
+        },
+        {
+          checkType: 'transfer_to_new_domain',
+          conceptId: 'c-1',
+          confusionScore: 0.05,
+          evaluatedAt: '2026-04-14T00:01:00.000Z',
+          isCorrect: true,
+          questionType: 'transfer_to_new_domain',
+        },
+      ],
+      status: 'checked',
+    };
+
+    const result = validateMasteryGate(mastery, defaultGate, {
+      atuResolution: { allResolved: false, unresolvedCount: 3 },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reason).toContain('3 linked ATU(s) still unresolved');
+  });
+
+  it('passes with ATU resolution when all are resolved', () => {
+    const mastery: ConceptMasteryRecord = {
+      ...createInitialMastery('c-1'),
+      confusionScore: 0.1,
+      evidenceHistory: [
+        {
+          checkType: 'paraphrase',
+          conceptId: 'c-1',
+          confusionScore: 0.1,
+          evaluatedAt: '2026-04-14T00:00:00.000Z',
+          isCorrect: true,
+          questionType: 'paraphrase',
+        },
+        {
+          checkType: 'transfer_to_new_domain',
+          conceptId: 'c-1',
+          confusionScore: 0.05,
+          evaluatedAt: '2026-04-14T00:01:00.000Z',
+          isCorrect: true,
+          questionType: 'transfer_to_new_domain',
+        },
+      ],
+      status: 'checked',
+    };
+
+    const result = validateMasteryGate(mastery, defaultGate, {
+      atuResolution: { allResolved: true, unresolvedCount: 0 },
+    });
     expect(result.passed).toBe(true);
   });
 });

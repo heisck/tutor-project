@@ -14,6 +14,7 @@ import type {
 
 import { applyEvaluationToMastery, createInitialMastery } from './evaluation.js';
 import { mapMasteryQuestionTypeToCheckType } from './check-types.js';
+import { applyDegradedEvaluationGuard } from '../lib/provider-integrity.js';
 
 export class MasteryEnforcementError extends Error {
   public constructor(message: string) {
@@ -25,6 +26,7 @@ export class MasteryEnforcementError extends Error {
 export interface MasteryUpdateInput {
   checkType: CheckQuestionType;
   conceptId: string;
+  degradedReason?: string | null;
   evaluation: ResponseEvaluation;
   segment: LessonSegmentRecord;
 }
@@ -132,11 +134,15 @@ export function enforceMasteryTransition(
     input.segment.masteryGate,
   );
 
-  // If the state machine says mastered but the gate says no, clamp to checked
+  // Degraded evaluation guard: degraded evaluations cannot silently award mastery
+  const degradedGuard = applyDegradedEvaluationGuard(input.degradedReason ?? null);
+
+  // If the state machine says mastered but the gate says no, clamp to checked.
+  // Also clamp if the evaluation was degraded (heuristic fallback cannot award mastery).
   const enforcedMastery: ConceptMasteryRecord = {
     ...updatedMastery,
     status:
-      updatedMastery.status === 'mastered' && !gateResult.passed
+      updatedMastery.status === 'mastered' && (!gateResult.passed || !degradedGuard.allowMastery)
         ? 'checked'
         : updatedMastery.status,
   };
@@ -182,6 +188,7 @@ export async function persistCoverageStatusUpdate(
 }
 
 export interface MasteryGateResult {
+  illusionBlocked: boolean;
   missingQuestionTypes: string[];
   passed: boolean;
   reason: string;
@@ -190,23 +197,38 @@ export interface MasteryGateResult {
 /**
  * Validate whether a concept's mastery record meets the gate requirements.
  * This is the no-fake-mastery enforcement.
+ *
+ * Hard mastery rules:
+ * - evidence_count >= minimumChecks (default 2)
+ * - evidence_types must include required question types
+ *   (e.g. explanation OR application, AND transfer OR error_spotting)
+ * - confusion_score < confusionThreshold
+ * - illusion_flag = false — blocks mastery even when answers look correct
+ * - All correct evidence must include at least one non-recall type
+ *
+ * Note: ATU resolution is checked separately via checkAtuResolution()
+ * since it requires a database call. Use validateMasteryGateWithAtuResolution()
+ * for the complete gate check.
  */
 export function validateMasteryGate(
   mastery: ConceptMasteryRecord,
   gate: MasteryGate,
+  options?: { atuResolution?: { allResolved: boolean; unresolvedCount: number } },
 ): MasteryGateResult {
   const reasons: string[] = [];
+  let illusionBlocked = false;
 
-  // Check minimum evidence count
-  if (mastery.evidenceHistory.length < gate.minimumChecks) {
+  // Hard rule: minimum evidence count >= 2
+  const correctEvidence = mastery.evidenceHistory.filter((e) => e.isCorrect);
+  if (correctEvidence.length < gate.minimumChecks) {
     reasons.push(
-      `Need ${gate.minimumChecks} checks, have ${mastery.evidenceHistory.length}`,
+      `Need ${gate.minimumChecks} correct checks, have ${correctEvidence.length}`,
     );
   }
 
-  // Check distinct question types
+  // Hard rule: required evidence types must be present
   if (gate.requiresDistinctQuestionTypes) {
-    const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
+    const usedTypes = new Set(correctEvidence.map((e) => e.checkType));
     const missingTypes = gate.requiredQuestionTypes.filter(
       (type) => {
         const mapped = mapMasteryQuestionTypeToCheckType(type);
@@ -219,38 +241,51 @@ export function validateMasteryGate(
     }
   }
 
-  // Check confusion threshold
+  // Hard rule: confusion_score < threshold
   if (mastery.confusionScore > gate.confusionThreshold) {
     reasons.push(
       `Confusion ${mastery.confusionScore.toFixed(2)} exceeds threshold ${gate.confusionThreshold}`,
     );
   }
 
-  // Check for illusion of understanding flags in recent evidence
-  const recentIllusion = mastery.evidenceHistory.some(
+  // Hard rule: illusion_flag = false blocks mastery unconditionally
+  // Check both: any evidence item with high confusion despite correct answer,
+  // and any evidence item that was scored with isCorrect but had high confusion
+  const hasIllusion = mastery.evidenceHistory.some(
     (e) => e.isCorrect && e.confusionScore > gate.confusionThreshold,
   );
-  if (recentIllusion) {
-    reasons.push('Recent evidence shows potential illusion of understanding');
+  if (hasIllusion) {
+    illusionBlocked = true;
+    reasons.push(
+      'Illusion of understanding detected: correct answers with high confusion scores block mastery',
+    );
   }
 
-  // All correct evidence must include at least one non-recall type
-  const correctNonRecall = mastery.evidenceHistory.filter(
-    (e) => e.isCorrect && e.checkType !== 'recall',
+  // Hard rule: all correct evidence must include at least one non-recall type
+  const correctNonRecall = correctEvidence.filter(
+    (e) => e.checkType !== 'recall',
   );
   if (correctNonRecall.length === 0 && mastery.evidenceHistory.length > 0) {
     reasons.push('No correct evidence from non-recall question types');
   }
 
+  // Hard rule: all linked ATUs must be resolved (when provided)
+  if (options?.atuResolution && !options.atuResolution.allResolved) {
+    reasons.push(
+      `${options.atuResolution.unresolvedCount} linked ATU(s) still unresolved`,
+    );
+  }
+
   const missingQuestionTypes = gate.requiresDistinctQuestionTypes
     ? gate.requiredQuestionTypes.filter((type) => {
         const mapped = mapMasteryQuestionTypeToCheckType(type);
-        const usedTypes = new Set(mastery.evidenceHistory.map((e) => e.checkType));
+        const usedTypes = new Set(correctEvidence.map((e) => e.checkType));
         return mapped !== null && !usedTypes.has(mapped);
       })
     : [];
 
   return {
+    illusionBlocked,
     missingQuestionTypes,
     passed: reasons.length === 0,
     reason: reasons.length > 0 ? reasons.join('; ') : 'All gate conditions met',

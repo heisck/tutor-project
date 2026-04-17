@@ -253,7 +253,24 @@ describe('orchestrateTutorNextStep', () => {
     const mastery: ConceptMasteryRecord = {
       conceptId: 'concept-1',
       confusionScore: 0.1,
-      evidenceHistory: [],
+      evidenceHistory: [
+        {
+          checkType: 'paraphrase',
+          conceptId: 'concept-1',
+          confusionScore: 0.1,
+          evaluatedAt: '2026-04-14T00:00:00.000Z',
+          isCorrect: true,
+          questionType: 'paraphrase',
+        },
+        {
+          checkType: 'transfer_to_new_domain',
+          conceptId: 'concept-1',
+          confusionScore: 0.05,
+          evaluatedAt: '2026-04-14T00:01:00.000Z',
+          isCorrect: true,
+          questionType: 'transfer_to_new_domain',
+        },
+      ],
       explanationTypes: ['analogy'],
       status: 'mastered',
     };
@@ -265,6 +282,28 @@ describe('orchestrateTutorNextStep', () => {
     });
 
     expect(result.decision.action).toBe('complete_session');
+  });
+
+  it('forces check when complete_session attempted without evidence', () => {
+    const segment = createTestSegment();
+    const state = createTestSessionState([segment]);
+    const mastery: ConceptMasteryRecord = {
+      conceptId: 'concept-1',
+      confusionScore: 0.1,
+      evidenceHistory: [],
+      explanationTypes: ['analogy'],
+      status: 'mastered',
+    };
+
+    const result = orchestrateTutorNextStep({
+      masteryRecords: new Map([['concept-1', mastery]]),
+      retrievedChunks: [createTestChunk('chunk-1')],
+      sessionState: state,
+    });
+
+    // Runtime contract enforcement: can't complete without check evidence
+    expect(result.decision.action).toBe('check');
+    expect(result.decision.reasoning).toContain('Contract violation');
   });
 
   it('throws when no grounded evidence is available', () => {
@@ -314,6 +353,36 @@ describe('orchestrateTutorNextStep', () => {
   it('rotates check question types using unused types first', () => {
     const segment = createTestSegment();
     const state = createTestSessionState([segment]);
+    // Set handoff with weak responseQuality so the orchestrator takes the check path
+    // (adequate responseQuality triggers refine instead of check for 'checked' status)
+    state.handoffSnapshot = {
+      createdAt: '2026-04-14T00:00:00.000Z',
+      currentSectionId: null,
+      currentSegmentId: 'segment-1',
+      currentStep: 1,
+      explanationHistory: [],
+      masterySnapshot: [],
+      resumeNotes: null,
+      sessionId: 'session-1',
+      turnState: {
+        currentCognitiveLoad: 'low',
+        lastErrorClassification: null,
+        lastRecommendedAction: null,
+        modeQueueCursor: 0,
+        recentConfusionSignals: [],
+        responseQuality: 'weak',
+        unknownTermsQueue: [],
+      },
+      unresolvedAtuIds: [],
+      updatedAt: '2026-04-14T00:00:00.000Z',
+      voiceState: {
+        isHandsFree: false,
+        lastTranscript: null,
+        lastTutorMessageId: null,
+        pendingCommand: null,
+        playbackRate: 1,
+      },
+    };
     const mastery: ConceptMasteryRecord = {
       conceptId: 'concept-1',
       confusionScore: 0.2,

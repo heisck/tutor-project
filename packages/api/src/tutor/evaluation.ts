@@ -272,10 +272,12 @@ export function detectConfusionSignals(response: string): ConfusionSignal[] {
     signals.push('long_pause');
   }
 
+  const wordCount = normalized.split(/\s+/).length;
   if (
-    /\b(because|therefore|so that|which means)\b/.test(normalized) === false &&
+    /\b(because|therefore|so that|which means|apply|example|when|if)\b/.test(normalized) === false &&
     normalized.length >= 20 &&
-    normalized.split(/\s+/).length >= 6
+    wordCount >= 6 &&
+    wordCount <= 12
   ) {
     signals.push('correct_words_weak_reasoning');
   }
