@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import {
   type DatabaseClient,
   type Prisma,
@@ -52,7 +52,7 @@ const batchResponseSchema = z.object({
 });
 
 export function createAtuMapperClient(apiKey: string): AtuMapperClient {
-  const client = new Anthropic({ apiKey });
+  const ai = new GoogleGenAI({ apiKey });
 
   return {
     async extractAtusBatch(units): Promise<Map<string, RawAtu[]>> {
@@ -61,27 +61,23 @@ export function createAtuMapperClient(apiKey: string): AtuMapperClient {
       }
 
       const result = await executeAiCall('atuExtraction', async (signal) => {
-        const response = await client.messages.create(
-          {
-            max_tokens: AI_CALL_CONFIGS.atuExtraction.maxTokens,
-            messages: [
-              {
-                content: buildBatchExtractionPrompt(units),
-                role: 'user',
-              },
-            ],
-            model: AI_CALL_CONFIGS.atuExtraction.model,
-            system: ATU_SYSTEM_PROMPT,
+        const response = await ai.models.generateContent({
+          config: {
+            abortSignal: signal,
+            maxOutputTokens: AI_CALL_CONFIGS.atuExtraction.maxTokens,
+            responseMimeType: 'application/json',
+            systemInstruction: ATU_SYSTEM_PROMPT,
           },
-          { signal },
-        );
+          contents: buildBatchExtractionPrompt(units),
+          model: AI_CALL_CONFIGS.atuExtraction.model,
+        });
 
         return {
           data: response,
-          finishReason: response.stop_reason ?? null,
+          finishReason: response.candidates?.[0]?.finishReason ?? null,
           usage: {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
+            inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+            outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
           },
         };
       });
@@ -90,12 +86,12 @@ export function createAtuMapperClient(apiKey: string): AtuMapperClient {
         return new Map();
       }
 
-      const textBlock = result.data.content.find((b) => b.type === 'text');
-      if (textBlock === undefined || textBlock.type !== 'text') {
+      const text = result.data.text;
+      if (text === undefined || text.length === 0) {
         return new Map();
       }
 
-      return parseBatchResponse(textBlock.text);
+      return parseBatchResponse(text);
     },
   };
 }

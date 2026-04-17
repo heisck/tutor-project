@@ -7,7 +7,7 @@ import {
 } from '../src/lib/provider-integrity.js';
 
 describe('validateProviderIntegrity', () => {
-  it('passes with current configuration (Claude for core, OpenAI for voice/embedding)', () => {
+  it('passes with current configuration (Claude for reasoning, Gemini for ingestion, OpenAI for voice)', () => {
     const report = validateProviderIntegrity();
     expect(report.passed).toBe(true);
     expect(report.violations).toHaveLength(0);

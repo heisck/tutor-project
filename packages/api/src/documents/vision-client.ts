@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { Jimp } from 'jimp';
 
 import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
@@ -25,15 +25,15 @@ export interface VisionDescriptionClient {
 export function createVisionDescriptionClient(
   apiKey: string,
 ): VisionDescriptionClient {
-  const client = new Anthropic({ apiKey });
+  const ai = new GoogleGenAI({ apiKey });
 
   return {
-    describeAsset: async (asset) => describeAsset(client, asset),
+    describeAsset: async (asset) => describeAsset(ai, asset),
   };
 }
 
 async function describeAsset(
-  client: Anthropic,
+  ai: GoogleGenAI,
   asset: ExtractedDocumentAsset,
 ): Promise<string | null> {
   if (!isVisionSupportedMimeType(asset.mimeType)) {
@@ -46,40 +46,35 @@ async function describeAsset(
     const result = await executeAiCall(
       'visionDescription',
       async (signal) => {
-        const response = await client.messages.create(
-          {
-            max_tokens: AI_CALL_CONFIGS.visionDescription.maxTokens,
-            messages: [
-              {
-                content: [
-                  {
-                    source: {
-                      data: prepared.buffer.toString('base64'),
-                      media_type: prepared.mimeType,
-                      type: 'base64',
-                    },
-                    type: 'image',
-                  },
-                  {
-                    text: 'Describe this educational visual for a student.',
-                    type: 'text',
-                  },
-                ],
-                role: 'user',
-              },
-            ],
-            model: AI_CALL_CONFIGS.visionDescription.model,
-            system: VISION_SYSTEM_PROMPT,
+        const response = await ai.models.generateContent({
+          config: {
+            abortSignal: signal,
+            maxOutputTokens: AI_CALL_CONFIGS.visionDescription.maxTokens,
+            systemInstruction: VISION_SYSTEM_PROMPT,
           },
-          { signal },
-        );
+          contents: [
+            {
+              parts: [
+                {
+                  inlineData: {
+                    data: prepared.buffer.toString('base64'),
+                    mimeType: prepared.mimeType,
+                  },
+                },
+                { text: 'Describe this educational visual for a student.' },
+              ],
+              role: 'user',
+            },
+          ],
+          model: AI_CALL_CONFIGS.visionDescription.model,
+        });
 
         return {
           data: response,
-          finishReason: response.stop_reason ?? null,
+          finishReason: response.candidates?.[0]?.finishReason ?? null,
           usage: {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
+            inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+            outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
           },
         };
       },
@@ -89,8 +84,7 @@ async function describeAsset(
       return null;
     }
 
-    const textBlock = result.data.content.find((block) => block.type === 'text');
-    return textBlock?.text?.trim() || null;
+    return result.data.text?.trim() || null;
   } catch {
     return null;
   }

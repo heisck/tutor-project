@@ -11,7 +11,7 @@ export const AI_CALL_CONFIGS = {
   atuExtraction: {
     label: 'atu-extraction',
     maxTokens: 2048,
-    model: 'claude-haiku-4-5-20251001',
+    model: 'gemini-2.5-flash',
     timeoutMs: 60_000,
   },
   conceptAnalysis: {
@@ -23,7 +23,7 @@ export const AI_CALL_CONFIGS = {
   embedding: {
     label: 'embedding',
     maxTokens: 0,
-    model: 'text-embedding-3-small',
+    model: 'gemini-embedding-001',
     timeoutMs: 30_000,
   },
   tutorAssistant: {
@@ -47,7 +47,7 @@ export const AI_CALL_CONFIGS = {
   visionDescription: {
     label: 'vision-description',
     maxTokens: 300,
-    model: 'claude-haiku-4-5-20251001',
+    model: 'gemini-2.5-flash',
     timeoutMs: 30_000,
   },
   voiceSynthesis: {

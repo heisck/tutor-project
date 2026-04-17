@@ -36,9 +36,9 @@ const app = await buildApp({
 const worker = createDocumentWorkerEntryPoint({
   assetStorageClient:
     sharedDevStorageClient ?? createR2UploadStorageClient(env),
-  atuMapperClient: createAtuMapperClient(env.ANTHROPIC_API_KEY),
+  atuMapperClient: createAtuMapperClient(env.GEMINI_API_KEY),
   conceptAnalyzerClient: createConceptAnalyzerClient(env.ANTHROPIC_API_KEY),
-  embeddingClient: createEmbeddingClient({ apiKey: env.OPENAI_API_KEY }),
+  embeddingClient: createEmbeddingClient({ apiKey: env.GEMINI_API_KEY }),
   env,
   parserAdapters: [
     createPdfDocumentParserAdapter(),
@@ -48,7 +48,7 @@ const worker = createDocumentWorkerEntryPoint({
   prisma,
   storageClient:
     sharedDevStorageClient ?? createR2DocumentSourceStorageClient(env),
-  visionClient: createVisionDescriptionClient(env.ANTHROPIC_API_KEY),
+  visionClient: createVisionDescriptionClient(env.GEMINI_API_KEY),
 });
 
 async function shutdown(): Promise<void> {

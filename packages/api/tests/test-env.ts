@@ -11,6 +11,7 @@ export function createApiTestEnv(
     DATABASE_URL:
       process.env.DATABASE_URL ??
       'postgresql://postgres:postgres@localhost:5433/ai_tutor_pwa?schema=public',
+    GEMINI_API_KEY: 'test-gemini-api-key',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
     GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/v1/auth/oauth/callback',

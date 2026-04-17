@@ -19,9 +19,9 @@ const prisma = getPrismaClient();
 
 const worker = createDocumentWorkerEntryPoint({
   assetStorageClient: createR2UploadStorageClient(env),
-  atuMapperClient: createAtuMapperClient(env.ANTHROPIC_API_KEY),
+  atuMapperClient: createAtuMapperClient(env.GEMINI_API_KEY),
   conceptAnalyzerClient: createConceptAnalyzerClient(env.ANTHROPIC_API_KEY),
-  embeddingClient: createEmbeddingClient({ apiKey: env.OPENAI_API_KEY }),
+  embeddingClient: createEmbeddingClient({ apiKey: env.GEMINI_API_KEY }),
   env,
   parserAdapters: [
     createPdfDocumentParserAdapter(),
@@ -30,7 +30,7 @@ const worker = createDocumentWorkerEntryPoint({
   ],
   prisma,
   storageClient: createR2DocumentSourceStorageClient(env),
-  visionClient: createVisionDescriptionClient(env.ANTHROPIC_API_KEY),
+  visionClient: createVisionDescriptionClient(env.GEMINI_API_KEY),
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

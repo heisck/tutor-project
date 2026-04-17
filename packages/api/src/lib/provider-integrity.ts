@@ -1,26 +1,38 @@
 import { AI_CALL_CONFIGS, type AiCallType } from './ai-runtime.js';
 
 /**
- * Core learning intelligence paths that MUST be Claude-backed.
- * These paths directly affect learning outcomes and mastery decisions.
+ * Core reasoning paths that MUST remain Claude-backed.
+ * These paths directly determine tutoring behavior and mastery decisions.
  */
-const CORE_LEARNING_PATHS: ReadonlySet<AiCallType> = new Set([
+const CLAUDE_REQUIRED_PATHS: ReadonlySet<AiCallType> = new Set([
   'tutorGeneration',
   'tutorEvaluation',
   'tutorAssistant',
-  'atuExtraction',
   'conceptAnalysis',
+]);
+
+/**
+ * Intentional Gemini-backed ingestion and retrieval paths.
+ * These reduce upload cost without changing the tutor brain.
+ */
+const GEMINI_ALLOWED_PATHS: ReadonlySet<AiCallType> = new Set([
+  'atuExtraction',
+  'embedding',
   'visionDescription',
 ]);
 
 /**
- * Allowed non-Claude providers and their permitted call types.
- * OpenAI may remain ONLY for these explicitly intentional, non-core paths.
+ * Intentional OpenAI-backed voice paths.
  */
-const ALLOWED_NON_CLAUDE_PATHS: ReadonlySet<AiCallType> = new Set([
-  'embedding',
+const OPENAI_ALLOWED_PATHS: ReadonlySet<AiCallType> = new Set([
   'voiceTranscription',
   'voiceSynthesis',
+]);
+
+const ZERO_TOKEN_BUDGET_ALLOWED_PATHS: ReadonlySet<AiCallType> = new Set([
+  'embedding',
+  'voiceSynthesis',
+  'voiceTranscription',
 ]);
 
 export interface ProviderIntegrityViolation {
@@ -35,12 +47,13 @@ export interface ProviderIntegrityReport {
 }
 
 /**
- * Validate that all core learning paths use Claude (Anthropic) models.
+ * Validate that provider routing matches the intended contract.
  *
  * Provider rule:
- * - Core learning intelligence must be Claude-backed
- * - OpenAI may remain only for embeddings, voice transcription, and voice synthesis
- * - No TODO provider swaps, no silent placeholder OpenAI usage in core tutor logic
+ * - Tutor/planning/evaluation reasoning must be Claude-backed
+ * - Upload-time extraction, vision, and embeddings may be Gemini-backed
+ * - Voice paths may remain OpenAI-backed
+ * - No unclassified or accidental provider drift
  *
  * This function should be called at application startup to catch
  * configuration drift before any tutoring sessions begin.
@@ -51,17 +64,40 @@ export function validateProviderIntegrity(): ProviderIntegrityReport {
   for (const [callType, config] of Object.entries(AI_CALL_CONFIGS)) {
     const typedCallType = callType as AiCallType;
 
-    if (CORE_LEARNING_PATHS.has(typedCallType)) {
-      // Core paths must use Claude models
+    if (CLAUDE_REQUIRED_PATHS.has(typedCallType)) {
       if (!isClaudeModel(config.model)) {
         violations.push({
           callType: typedCallType,
           currentModel: config.model,
-          reason: `Core learning path "${callType}" uses non-Claude model "${config.model}". Core paths must be Claude-backed.`,
+          reason: `Core reasoning path "${callType}" uses non-Claude model "${config.model}". These paths must be Claude-backed.`,
         });
       }
-    } else if (!ALLOWED_NON_CLAUDE_PATHS.has(typedCallType)) {
-      // Unknown call type — flag it
+      continue;
+    }
+
+    if (GEMINI_ALLOWED_PATHS.has(typedCallType)) {
+      if (!isGeminiModel(config.model)) {
+        violations.push({
+          callType: typedCallType,
+          currentModel: config.model,
+          reason: `Path "${callType}" is expected to use a Gemini model, but is configured as "${config.model}".`,
+        });
+      }
+      continue;
+    }
+
+    if (OPENAI_ALLOWED_PATHS.has(typedCallType)) {
+      if (!isOpenAiModel(config.model)) {
+        violations.push({
+          callType: typedCallType,
+          currentModel: config.model,
+          reason: `Voice path "${callType}" is expected to use an OpenAI model, but is configured as "${config.model}".`,
+        });
+      }
+      continue;
+    }
+
+    {
       violations.push({
         callType: typedCallType,
         currentModel: config.model,
@@ -78,6 +114,14 @@ export function validateProviderIntegrity(): ProviderIntegrityReport {
 
 function isClaudeModel(model: string): boolean {
   return model.startsWith('claude-');
+}
+
+function isGeminiModel(model: string): boolean {
+  return model.startsWith('gemini-');
+}
+
+function isOpenAiModel(model: string): boolean {
+  return model.startsWith('gpt-') || model.startsWith('text-embedding-');
 }
 
 /**
@@ -125,13 +169,39 @@ export function applyDegradedEvaluationGuard(
 export function checkSystemCompleteness(): string[] {
   const incompletePaths: string[] = [];
 
-  // Verify all core paths have configured models
-  for (const callType of CORE_LEARNING_PATHS) {
+  // Verify all required paths have configured models
+  for (const callType of CLAUDE_REQUIRED_PATHS) {
     const config = AI_CALL_CONFIGS[callType];
     if (!config.model || config.model.length === 0) {
       incompletePaths.push(`${callType}: no model configured`);
     }
-    if (config.maxTokens <= 0 && callType !== 'embedding') {
+    if (config.maxTokens <= 0 && !ZERO_TOKEN_BUDGET_ALLOWED_PATHS.has(callType)) {
+      incompletePaths.push(`${callType}: no max tokens configured`);
+    }
+    if (config.timeoutMs <= 0) {
+      incompletePaths.push(`${callType}: no timeout configured`);
+    }
+  }
+
+  for (const callType of GEMINI_ALLOWED_PATHS) {
+    const config = AI_CALL_CONFIGS[callType];
+    if (!config.model || config.model.length === 0) {
+      incompletePaths.push(`${callType}: no model configured`);
+    }
+    if (config.maxTokens <= 0 && !ZERO_TOKEN_BUDGET_ALLOWED_PATHS.has(callType)) {
+      incompletePaths.push(`${callType}: no max tokens configured`);
+    }
+    if (config.timeoutMs <= 0) {
+      incompletePaths.push(`${callType}: no timeout configured`);
+    }
+  }
+
+  for (const callType of OPENAI_ALLOWED_PATHS) {
+    const config = AI_CALL_CONFIGS[callType];
+    if (!config.model || config.model.length === 0) {
+      incompletePaths.push(`${callType}: no model configured`);
+    }
+    if (config.maxTokens <= 0 && !ZERO_TOKEN_BUDGET_ALLOWED_PATHS.has(callType)) {
       incompletePaths.push(`${callType}: no max tokens configured`);
     }
     if (config.timeoutMs <= 0) {

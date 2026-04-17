@@ -11,13 +11,15 @@ const sdkMocks = vi.hoisted(() => {
       },
     };
   }
-  const openAiEmbeddingsCreate = vi.fn();
-  const openAiConstructor = vi.fn();
-  function MockOpenAi(...args: unknown[]) {
-    openAiConstructor(...args);
+  const googleEmbedContent = vi.fn();
+  const googleGenerateContent = vi.fn();
+  const googleConstructor = vi.fn();
+  function MockGoogleGenAI(...args: unknown[]) {
+    googleConstructor(...args);
     return {
-      embeddings: {
-        create: openAiEmbeddingsCreate,
+      models: {
+        embedContent: googleEmbedContent,
+        generateContent: googleGenerateContent,
       },
     };
   }
@@ -25,10 +27,11 @@ const sdkMocks = vi.hoisted(() => {
   return {
     anthropicConstructor,
     anthropicMessagesCreate,
+    googleConstructor,
+    googleEmbedContent,
+    googleGenerateContent,
     MockAnthropic,
-    MockOpenAi,
-    openAiConstructor,
-    openAiEmbeddingsCreate,
+    MockGoogleGenAI,
   };
 });
 
@@ -36,8 +39,8 @@ vi.mock('@anthropic-ai/sdk', () => ({
   default: sdkMocks.MockAnthropic,
 }));
 
-vi.mock('openai', () => ({
-  default: sdkMocks.MockOpenAi,
+vi.mock('@google/genai', () => ({
+  GoogleGenAI: sdkMocks.MockGoogleGenAI,
 }));
 
 import { createVisionDescriptionClient } from '../src/documents/vision-client.js';
@@ -50,8 +53,9 @@ describe('AI client guardrails', () => {
   beforeEach(() => {
     sdkMocks.anthropicConstructor.mockClear();
     sdkMocks.anthropicMessagesCreate.mockReset();
-    sdkMocks.openAiConstructor.mockClear();
-    sdkMocks.openAiEmbeddingsCreate.mockReset();
+    sdkMocks.googleConstructor.mockClear();
+    sdkMocks.googleEmbedContent.mockReset();
+    sdkMocks.googleGenerateContent.mockReset();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -140,11 +144,11 @@ describe('AI client guardrails', () => {
   });
 
   it('ATU mapper returns an empty map when the provider path fails', async () => {
-    sdkMocks.anthropicMessagesCreate.mockRejectedValueOnce(
+    sdkMocks.googleGenerateContent.mockRejectedValueOnce(
       Object.assign(new Error('Bad Request'), { status: 400 }),
     );
 
-    const client = createAtuMapperClient('anthropic-key');
+    const client = createAtuMapperClient('gemini-key');
     const result = await client.extractAtusBatch([
       {
         category: 'text',
@@ -157,31 +161,31 @@ describe('AI client guardrails', () => {
     expect(result.size).toBe(0);
   });
 
-  it('embedding client uses centralized config, forwards AbortSignal, and sorts embeddings by index', async () => {
-    sdkMocks.openAiEmbeddingsCreate.mockImplementationOnce(
-      async (payload: Record<string, unknown>, options: Record<string, unknown>) => {
+  it('embedding client uses centralized config, forwards AbortSignal, and preserves embedding order', async () => {
+    sdkMocks.googleEmbedContent.mockImplementationOnce(
+      async (payload: Record<string, unknown>) => {
         expect(payload.model).toBe(AI_CALL_CONFIGS.embedding.model);
-        expect(options.signal).toBeInstanceOf(AbortSignal);
+        expect(payload.config).toMatchObject({
+          autoTruncate: true,
+          outputDimensionality: 1536,
+          taskType: 'RETRIEVAL_DOCUMENT',
+        });
+        expect((payload.config as { abortSignal: AbortSignal }).abortSignal).toBeInstanceOf(AbortSignal);
 
         return {
-          data: [
+          embeddings: [
             {
-              embedding: [0.3, 0.4],
-              index: 1,
+              values: [0.1, 0.2],
             },
             {
-              embedding: [0.1, 0.2],
-              index: 0,
+              values: [0.3, 0.4],
             },
           ],
-          usage: {
-            total_tokens: 22,
-          },
         };
       },
     );
 
-    const client = createEmbeddingClient({ apiKey: 'openai-key' });
+    const client = createEmbeddingClient({ apiKey: 'gemini-key' });
     const result = await client.generateEmbeddings(['alpha', 'beta']);
 
     expect(result).toEqual([
@@ -192,11 +196,11 @@ describe('AI client guardrails', () => {
 
   it('embedding client times out through the wrapper and throws a bounded failure', async () => {
     vi.useFakeTimers();
-    sdkMocks.openAiEmbeddingsCreate.mockImplementationOnce(
+    sdkMocks.googleEmbedContent.mockImplementationOnce(
       () => new Promise(() => {}),
     );
 
-    const client = createEmbeddingClient({ apiKey: 'openai-key' });
+    const client = createEmbeddingClient({ apiKey: 'gemini-key' });
     const promise = client.generateEmbeddings(['alpha']);
     const rejection = expect(promise).rejects.toThrow(
       'Embedding request failed (timeout)',
@@ -207,11 +211,11 @@ describe('AI client guardrails', () => {
   });
 
   it('vision client returns null when the provider path fails', async () => {
-    sdkMocks.anthropicMessagesCreate.mockRejectedValueOnce(
+    sdkMocks.googleGenerateContent.mockRejectedValueOnce(
       Object.assign(new Error('Bad Request'), { status: 400 }),
     );
 
-    const client = createVisionDescriptionClient('anthropic-key');
+    const client = createVisionDescriptionClient('gemini-key');
     const result = await client.describeAsset({
       buffer: Buffer.from('image-bytes'),
       kind: 'image',
