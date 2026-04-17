@@ -15,11 +15,15 @@ import {
   UnrecoverableDocumentParserError,
 } from './parsers.js';
 import { generateAtus, type AtuMapperClient } from '../knowledge/atu-mapper.js';
-import { generateDocumentChunks } from '../knowledge/chunk-pipeline.js';
+import {
+  backfillDocumentChunkEmbeddings,
+  generateDocumentChunks,
+} from '../knowledge/chunk-pipeline.js';
 import { generateConceptGraph, type ConceptAnalyzerClient } from '../knowledge/concept-analyzer.js';
 import { initializeCoverageLedger } from '../knowledge/coverage-ledger.js';
 import type { EmbeddingClient } from '../knowledge/embedding-client.js';
 import { generateSourceUnits } from '../knowledge/source-units.js';
+import { writeStructuredLog } from '../lib/structured-log.js';
 import { persistNormalizedDocumentStructure } from './persistence.js';
 import { transitionDocumentProcessingStatus } from './service.js';
 import type { VisionDescriptionClient } from './vision-client.js';
@@ -159,7 +163,7 @@ export function createDocumentProcessingJobProcessor(
 
       await generateDocumentChunks(
         dependencies.prisma,
-        dependencies.embeddingClient ?? null,
+        null,
         {
           documentId: document.id,
           userId: document.userId,
@@ -191,6 +195,33 @@ export function createDocumentProcessingJobProcessor(
         documentId: document.id,
         nextStatus: DocumentProcessingStatus.COMPLETE,
       });
+
+      if (dependencies.embeddingClient !== null && dependencies.embeddingClient !== undefined) {
+        void backfillDocumentChunkEmbeddings(
+          dependencies.prisma,
+          dependencies.embeddingClient,
+          {
+            documentId: document.id,
+            userId: document.userId,
+          },
+        )
+          .then((result) => {
+            if (result.embeddedCount > 0) {
+              writeStructuredLog('info', 'document_embedding_backfill', {
+                documentId: document.id,
+                embeddedCount: result.embeddedCount,
+                chunkCount: result.chunkCount,
+              });
+            }
+          })
+          .catch((error) => {
+            writeStructuredLog('warn', 'document_embedding_backfill', {
+              documentId: document.id,
+              message: error instanceof Error ? error.message : String(error),
+              outcome: 'failed',
+            });
+          });
+      }
 
       return {
         parserName: parser.name,

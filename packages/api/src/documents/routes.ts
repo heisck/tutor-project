@@ -201,20 +201,6 @@ export async function registerDocumentRoutes(
         return reply.status(404).send({ message: 'Document not found' });
       }
 
-      const deletableStatuses: ReadonlySet<DocumentProcessingStatus> = new Set([
-        DocumentProcessingStatus.FAILED,
-        DocumentProcessingStatus.INDEXING,
-        DocumentProcessingStatus.QUEUED,
-        DocumentProcessingStatus.PROCESSING,
-        DocumentProcessingStatus.EXTRACTING,
-        DocumentProcessingStatus.RETRYING,
-        DocumentProcessingStatus.PENDING,
-      ]);
-
-      if (!deletableStatuses.has(document.processingStatus)) {
-        return reply.status(409).send({ message: 'Only non-complete documents can be deleted' });
-      }
-
       const assets = await dependencies.prisma.documentAsset.findMany({
         select: { storageKey: true },
         where: { documentId },

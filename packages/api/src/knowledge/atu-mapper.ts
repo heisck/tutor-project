@@ -11,7 +11,7 @@ import { AI_CALL_CONFIGS, executeAiCall } from '../lib/ai-runtime.js';
 import { mapWithConcurrency } from '../lib/concurrency.js';
 
 const ATU_BATCH_SIZE = 4;
-const ATU_BATCH_CONCURRENCY = 2;
+const ATU_BATCH_CONCURRENCY = 1;
 
 export interface AtuMapperClient {
   extractAtusBatch(units: readonly AtuExtractionInput[]): Promise<Map<string, RawAtu[]>>;

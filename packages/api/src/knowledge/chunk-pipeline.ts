@@ -41,29 +41,62 @@ export async function generateDocumentChunks(
     return { chunkCount: 0, embeddedCount: 0 };
   }
 
-  let embeddings: number[][] | null = null;
-
-  if (embeddingClient !== null) {
-    try {
-      embeddings = await embeddingClient.generateEmbeddings(
-        chunks.map((c) => c.content),
-      );
-    } catch {
-      // Embedding failure is non-fatal — chunks are persisted without vectors
-      // A later backfill can re-embed
-    }
-  }
-
-  const embeddedCount = embeddings?.length ?? 0;
-
   await persistChunks(prisma, {
     chunks,
     documentId: input.documentId,
-    embeddings,
+    embeddings: null,
     userId: input.userId,
   });
 
-  return { chunkCount: chunks.length, embeddedCount };
+  return { chunkCount: chunks.length, embeddedCount: 0 };
+}
+
+export async function backfillDocumentChunkEmbeddings(
+  prisma: DatabaseClient,
+  embeddingClient: EmbeddingClient | null,
+  input: ChunkPipelineInput,
+): Promise<ChunkPipelineResult> {
+  if (embeddingClient === null) {
+    return { chunkCount: 0, embeddedCount: 0 };
+  }
+
+  const chunks = await prisma.documentChunk.findMany({
+    orderBy: { ordinal: 'asc' },
+    select: {
+      content: true,
+      id: true,
+    },
+    where: {
+      documentId: input.documentId,
+      embedding: null,
+      userId: input.userId,
+    },
+  });
+
+  if (chunks.length === 0) {
+    return { chunkCount: 0, embeddedCount: 0 };
+  }
+
+  let embeddings: number[][] | null = null;
+
+  try {
+    embeddings = await embeddingClient.generateEmbeddings(
+      chunks.map((chunk) => chunk.content),
+    );
+  } catch {
+    return { chunkCount: chunks.length, embeddedCount: 0 };
+  }
+
+  if (embeddings.length !== chunks.length) {
+    return { chunkCount: chunks.length, embeddedCount: 0 };
+  }
+
+  await persistChunkEmbeddings(prisma, {
+    chunkIds: chunks.map((chunk) => chunk.id),
+    embeddings,
+  });
+
+  return { chunkCount: chunks.length, embeddedCount: embeddings.length };
 }
 
 async function persistChunks(
@@ -119,6 +152,29 @@ async function persistChunks(
         })),
       });
     }
+  }, {
+    maxWait: 10_000,
+    timeout: 120_000,
   });
 }
 
+async function persistChunkEmbeddings(
+  prisma: DatabaseClient,
+  input: {
+    chunkIds: readonly string[];
+    embeddings: readonly number[][];
+  },
+): Promise<void> {
+  for (let i = 0; i < input.chunkIds.length; i++) {
+    const chunkId = input.chunkIds[i]!;
+    const embedding = input.embeddings[i]!;
+    const vectorStr = `[${embedding.join(',')}]`;
+
+    await prisma.$executeRaw`
+      UPDATE "DocumentChunk"
+      SET "embedding" = ${vectorStr}::vector(1536),
+          "updatedAt" = NOW()
+      WHERE "id" = ${chunkId}
+    `;
+  }
+}

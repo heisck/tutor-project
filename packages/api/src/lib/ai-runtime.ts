@@ -109,6 +109,8 @@ interface HttpLikeError {
   code?: string;
   name?: string;
   headers?: Record<string, string | string[] | undefined>;
+  message?: string;
+  details?: unknown;
 }
 
 function toHttpLike(error: unknown): HttpLikeError {
@@ -152,33 +154,95 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
-export function extractRetryAfterMs(error: unknown): number | null {
-  if (
-    error === null ||
-    typeof error !== 'object' ||
-    !('headers' in error)
-  ) {
+function parseRetryAfterRaw(raw: string | null): number | null {
+  if (raw === null) return null;
+
+  const trimmed = raw.trim();
+
+  // Could be seconds (numeric) or an HTTP-date
+  const seconds = Number(trimmed);
+  if (!Number.isNaN(seconds) && seconds > 0) {
+    return Math.ceil(seconds * 1000);
+  }
+
+  const delayMatch = trimmed.match(/(\d+(?:\.\d+)?)s\b/i);
+  if (delayMatch?.[1] !== undefined) {
+    const delaySeconds = Number(delayMatch[1]);
+    if (!Number.isNaN(delaySeconds) && delaySeconds > 0) {
+      return Math.ceil(delaySeconds * 1000);
+    }
+  }
+
+  // HTTP-date fallback
+  const date = new Date(trimmed);
+  if (!Number.isNaN(date.getTime())) {
+    return Math.max(date.getTime() - Date.now(), 0);
+  }
+
+  return null;
+}
+
+function extractRetryAfterFromGoogleDetails(details: unknown): number | null {
+  if (!Array.isArray(details)) {
     return null;
   }
 
-  const headers = (error as { headers: unknown }).headers;
+  for (const detail of details) {
+    if (detail === null || typeof detail !== 'object') {
+      continue;
+    }
 
-  // Both Anthropic and OpenAI SDKs use the web Headers class
-  let raw: string | null = null;
-  if (headers instanceof Headers) {
-    raw = headers.get('retry-after');
+    const retryDelay = (detail as { retryDelay?: unknown }).retryDelay;
+    if (typeof retryDelay === 'string') {
+      const parsed = parseRetryAfterRaw(retryDelay);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
   }
 
-  if (raw === null) return null;
+  return null;
+}
 
-  // Could be seconds (numeric) or an HTTP-date
-  const seconds = Number(raw);
-  if (!isNaN(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
+export function extractRetryAfterMs(error: unknown): number | null {
+  if (error === null || typeof error !== 'object') {
+    return null;
+  }
 
-  // HTTP-date fallback
-  const date = new Date(raw);
-  if (!isNaN(date.getTime())) {
-    return Math.max(date.getTime() - Date.now(), 0);
+  const candidate = error as HttpLikeError;
+  const headers = ('headers' in candidate ? candidate.headers : undefined) as unknown;
+
+  // Anthropic/OpenAI typically expose a web Headers class.
+  if (headers instanceof Headers) {
+    const parsed = parseRetryAfterRaw(headers.get('retry-after'));
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+
+  // Some SDKs expose plain-object headers.
+  if (headers !== null && typeof headers === 'object') {
+    const retryAfter = (headers as Record<string, unknown>)['retry-after'];
+    if (typeof retryAfter === 'string') {
+      const parsed = parseRetryAfterRaw(retryAfter);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+
+  // Gemini often puts retry information in structured error details.
+  const detailsRetryAfter = extractRetryAfterFromGoogleDetails(candidate.details);
+  if (detailsRetryAfter !== null) {
+    return detailsRetryAfter;
+  }
+
+  // As a final fallback, try to parse "Please retry in 49.1s" from the message.
+  if (typeof candidate.message === 'string') {
+    const parsed = parseRetryAfterRaw(candidate.message);
+    if (parsed !== null) {
+      return parsed;
+    }
   }
 
   return null;
@@ -289,7 +353,7 @@ function logAiCall<T>(
   }
 }
 
-const MAX_RATE_LIMIT_WAIT_MS = 10_000;
+const MAX_RATE_LIMIT_WAIT_MS = 60_000;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -363,7 +427,8 @@ export async function executeAiCall<T>(
       }
 
       if (isTransient && canRetry) {
-        await jitteredDelay();
+        const transientWaitMs = 750 * 2 ** attemptIdx + Math.floor(Math.random() * 250);
+        await sleep(transientWaitMs);
         continue;
       }
 

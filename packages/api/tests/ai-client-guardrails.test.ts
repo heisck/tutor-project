@@ -166,7 +166,6 @@ describe('AI client guardrails', () => {
       async (payload: Record<string, unknown>) => {
         expect(payload.model).toBe(AI_CALL_CONFIGS.embedding.model);
         expect(payload.config).toMatchObject({
-          autoTruncate: true,
           outputDimensionality: 1536,
           taskType: 'RETRIEVAL_DOCUMENT',
         });

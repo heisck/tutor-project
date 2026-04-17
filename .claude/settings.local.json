@@ -38,7 +38,15 @@
       "Bash(git checkout *)",
       "Bash(git stash *)",
       "Read(//tmp/**)",
-      "Bash(git apply *)"
+      "Bash(git apply *)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Skill(claude-api)",
+      "Bash(npm test *)",
+      "Bash(awk -F= '{print $1\"=\"substr\\($2,1,12\\)\"...\"}')",
+      "Bash(pnpm --filter @ai-tutor-pwa/api typecheck)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ]
   }
 }

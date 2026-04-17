@@ -27,6 +27,18 @@ function make429Error(retryAfterSeconds?: number): Error & { status: number; hea
   return err;
 }
 
+function makeGemini429Error(retryDelaySeconds: number): Error & {
+  status: number;
+  details: Array<{ retryDelay: string }>;
+} {
+  const err = new Error(
+    `Quota exceeded. Please retry in ${retryDelaySeconds}s.`,
+  ) as Error & { status: number; details: Array<{ retryDelay: string }> };
+  err.status = 429;
+  err.details = [{ retryDelay: `${retryDelaySeconds}s` }];
+  return err;
+}
+
 function makeSuccess<T>(data: T, outputTokens = 10): AiCallFnResult<T> {
   return {
     data,
@@ -139,6 +151,21 @@ describe('executeAiCall', () => {
     if (result.ok) return;
     expect(result.reason).toBe('rate_limited');
     expect(result.retryAfterMs).toBeNull();
+  });
+
+  it('rate limit extracts retry delay from Gemini error details', async () => {
+    const callFn = vi.fn().mockRejectedValue(makeGemini429Error(49));
+
+    vi.useFakeTimers();
+    const promise = executeAiCall('atuExtraction', callFn);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('rate_limited');
+    expect(result.retryAfterMs).toBe(49_000);
+    expect(callFn).toHaveBeenCalledTimes(4);
   });
 
   it('provider error no retry — 400 error; reason=provider_error, attempt=1, callFn called once', async () => {

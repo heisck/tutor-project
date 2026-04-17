@@ -11,7 +11,7 @@ export interface EmbeddingClientOptions {
   model?: string;
 }
 
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 40;
 const EMBEDDING_DIMENSIONS = 1536;
 
 export function createEmbeddingClient(options: EmbeddingClientOptions): EmbeddingClient {
@@ -33,7 +33,6 @@ export function createEmbeddingClient(options: EmbeddingClientOptions): Embeddin
             contents: [...batch],
             config: {
               abortSignal: signal,
-              autoTruncate: true,
               outputDimensionality: EMBEDDING_DIMENSIONS,
               taskType: 'RETRIEVAL_DOCUMENT',
             },

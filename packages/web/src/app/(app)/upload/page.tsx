@@ -366,7 +366,7 @@ export default function UploadPage() {
     setQueue((currentQueue) => currentQueue.filter((item) => item.id !== itemId));
   }
 
-  async function removeFailedDocument(document: DocumentListItemResponse) {
+  async function removeDocument(document: DocumentListItemResponse) {
     try {
       setDeletingDocumentId(document.documentId);
       await api.deleteDocument(document.documentId);
@@ -396,6 +396,21 @@ export default function UploadPage() {
   function openReadyDocument(documentId: string) {
     setOpeningDocumentId(documentId);
     router.push(`/session?documentId=${documentId}`);
+  }
+
+  async function removeQueueDocument(item: UploadQueueItem) {
+    if (item.documentId === undefined) {
+      removeQueueItem(item.id);
+      return;
+    }
+
+    const matchedDocument = documents.find((document) => document.documentId === item.documentId);
+    if (matchedDocument === undefined) {
+      removeQueueItem(item.id);
+      return;
+    }
+
+    await removeDocument(matchedDocument);
   }
 
   useEffect(() => {
@@ -550,16 +565,28 @@ export default function UploadPage() {
                     {formatRelativeTime(primaryReadyDocument.updatedAt)}
                   </p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  icon={<ArrowRight size={18} />}
-                  loading={openingDocumentId === primaryReadyDocument.documentId}
-                  loadingText="Opening..."
-                  onClick={() => openReadyDocument(primaryReadyDocument.documentId)}
-                >
-                  Start learning
-                </Button>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    icon={<Trash2 size={18} />}
+                    loading={deletingDocumentId === primaryReadyDocument.documentId}
+                    loadingText="Deleting..."
+                    onClick={() => void removeDocument(primaryReadyDocument)}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    icon={<ArrowRight size={18} />}
+                    loading={openingDocumentId === primaryReadyDocument.documentId}
+                    loadingText="Opening..."
+                    onClick={() => openReadyDocument(primaryReadyDocument.documentId)}
+                  >
+                    Start learning
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -629,7 +656,8 @@ export default function UploadPage() {
 
                         <button
                           className="rounded-lg p-2 text-cream-400 transition-colors hover:bg-ink-700 hover:text-cream-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-                          onClick={() => removeQueueItem(item.id)}
+                          disabled={deletingDocumentId === item.documentId}
+                          onClick={() => void removeQueueDocument(item)}
                           type="button"
                         >
                           <X size={18} />
@@ -691,13 +719,14 @@ export default function UploadPage() {
                           Retry
                         </Button>
                       )}
-                      <button
-                        className="rounded-lg p-2 text-cream-400 transition-colors hover:bg-ink-700 hover:text-cream-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-                        onClick={() => removeQueueItem(item.id)}
-                        type="button"
-                      >
-                        <X size={18} />
-                      </button>
+                        <button
+                          className="rounded-lg p-2 text-cream-400 transition-colors hover:bg-ink-700 hover:text-cream-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                          disabled={deletingDocumentId === item.documentId}
+                          onClick={() => void removeQueueDocument(item)}
+                          type="button"
+                        >
+                          <X size={18} />
+                        </button>
                     </div>
                   </div>
                 ))}
@@ -748,14 +777,25 @@ export default function UploadPage() {
 
                         <div className="flex flex-wrap gap-3">
                           {isReady ? (
-                            <Button
-                              loading={opening}
-                              loadingText="Opening..."
-                              onClick={() => openReadyDocument(doc.documentId)}
-                              variant="primary"
-                            >
-                              Start lesson
-                            </Button>
+                            <>
+                              <Button
+                                icon={<Trash2 size={16} />}
+                                loading={removing}
+                                loadingText="Deleting..."
+                                onClick={() => void removeDocument(doc)}
+                                variant="ghost"
+                              >
+                                Delete
+                              </Button>
+                              <Button
+                                loading={opening}
+                                loadingText="Opening..."
+                                onClick={() => openReadyDocument(doc.documentId)}
+                                variant="primary"
+                              >
+                                Start lesson
+                              </Button>
+                            </>
                           ) : null}
 
                           {isFailed ? (
@@ -771,7 +811,7 @@ export default function UploadPage() {
                               <Button
                                 loading={removing}
                                 loadingText="Removing..."
-                                onClick={() => void removeFailedDocument(doc)}
+                                onClick={() => void removeDocument(doc)}
                                 variant="ghost"
                               >
                                 Remove
@@ -779,7 +819,20 @@ export default function UploadPage() {
                             </>
                           ) : null}
 
-                          {!isReady && !isFailed ? <Button variant="outline" disabled>Preparing</Button> : null}
+                          {!isReady && !isFailed ? (
+                            <>
+                              <Button
+                                icon={<Trash2 size={16} />}
+                                loading={removing}
+                                loadingText="Deleting..."
+                                onClick={() => void removeDocument(doc)}
+                                variant="ghost"
+                              >
+                                Delete
+                              </Button>
+                              <Button variant="outline" disabled>Preparing</Button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -822,7 +875,7 @@ export default function UploadPage() {
                           icon={<Trash2 size={16} />}
                           loading={deletingDocumentId === doc.documentId}
                           loadingText="Removing..."
-                          onClick={() => void removeFailedDocument(doc)}
+                          onClick={() => void removeDocument(doc)}
                           variant="ghost"
                         >
                           Remove
